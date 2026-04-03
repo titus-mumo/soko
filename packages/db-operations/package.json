@@ -1,0 +1,33 @@
+{
+  "name": "db-operations",
+  "module": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "start": "bunx supabase start",
+    "status": "bunx supabase status",
+    "login": "bunx supabase login --no-browser",
+    "init": "bun run supabase init",
+    "connect": "bun run supabase link",
+    "generate": "drizzle-kit generate",
+    "migrate": "drizzle-kit migrate",
+    "push": "bunx supabase db push",
+    "update-local": "bunx supabase migration up --include-all",
+    "update-remote": "bunx supabase db push --include-all"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.10",
+    "dotenv-cli": "^11.0.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.99.2",
+    "dotenv": "^17.3.1",
+    "drizzle-kit": "^0.31.10",
+    "drizzle-orm": "^0.45.1",
+    "pg": "^8.20.0",
+    "postgres": "^3.4.8",
+    "supabase": "^2.82.0"
+  }
+}

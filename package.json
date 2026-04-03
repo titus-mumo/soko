@@ -1,0 +1,37 @@
+{
+  "name": "e-commerce",
+  "module": "index.ts",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/bun": "latest",
+    "eslint": "^10.0.3",
+    "globals": "^17.4.0",
+    "husky": "^9.1.7",
+    "jiti": "^2.6.1",
+    "lint-staged": "^16.4.0",
+    "prettier": "3.8.1",
+    "typescript-eslint": "^8.57.1"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "eslint-plugin-react": "^7.37.5"
+  },
+  "scripts": {
+    "build": "bun build src/index.ts --target bun --outdir ./dist",
+    "lint": "bunx eslint .",
+    "format": "bunx prettier . --write",
+    "test": "bun test",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "**/*.{js,ts,tsx,json,css,md}": [
+      "prettier packages/*/src/* --write --ignore-unknown"
+    ]
+  }
+}
