@@ -1,11 +1,9 @@
 {
   "extends": "tsconfig/tsconfig.json",
   "compilerOptions": {
-    "lib": ["es6"],
-    "module": "es6",
-    "target": "es6",
     "baseUrl": ".",
-    "types": ["bun"],
-    "ignoreDeprecations": "6.0"
-  }
+    "ignoreDeprecations": "6.0",
+    "types": ["bun", "node"]
+  },
+  "include": ["src/**/*", "drizzle.config.ts"]
 }

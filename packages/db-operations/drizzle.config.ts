@@ -1,4 +1,7 @@
 import { defineConfig } from "drizzle-kit";
+import { config } from "dotenv";
+
+config();
 
 // Define the shape of configs
 interface DbCredentials {

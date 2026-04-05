@@ -1,8 +1,10 @@
-import tsParser from "@typescript-eslint/parser";
-import tsPlugin from "@typescript-eslint/eslint-plugin";
-import reactPlugin from "eslint-plugin-react";
+const globals = require("globals");
+const pluginJs = require("@eslint/js");
+const tseslint = require("typescript-eslint");
+const tsParser = require("@typescript-eslint/parser");
 
-export default [
+// Flat config: each element is a discrete config object, not a legacy .eslintrc shape
+const rawConfig = [
   {
     files: ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"],
     languageOptions: {
@@ -10,19 +12,26 @@ export default [
       parserOptions: {
         project: "./tsconfig.json",
       },
+      globals: {
+        ...globals.browser,
+        ...globals.node, // replaces `env: { browser, node }`
+        Bun: true,
+      },
     },
     rules: {
-      semi: "error",
-      "prefer-const": "error",
-      "@typescript-eslint/no-unused-vars": [
+      semi: ["error", "always"],
+      "no-unused-vars": [
         "warn",
-        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+        { vars: "all", args: "after-used", ignoreRestSiblings: true },
       ],
     },
-    plugins: {
-      "@typescript-eslint": tsPlugin,
-      react: reactPlugin,
-    },
     ignores: [".node_modules/*"],
+    // `extends` and `env` are legacy — not valid in flat config
   },
+];
+
+export default [
+  ...rawConfig,
+  ...tseslint.configs.recommended,
+  pluginJs.configs.recommended,
 ];

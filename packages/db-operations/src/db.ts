@@ -1,7 +1,9 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import * as schema from "./schema";
 import postgres from "postgres";
-require("dotenv").config();
+import { config } from "dotenv";
+
+config();
 
 // TODO: Find why .env injection into DB_URL only accepts .env file from the server package
 

@@ -430,5 +430,32 @@ export const errorLogsTable = pgTable("error_logs", {
 });
 
 // ─────────────────────────────────────────
+// AUTH
+// ─────────────────────────────────────────
+
+export const refreshTokensTable = pgTable("refresh_tokens", {
+  ...defaultFields,
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  token: text("token").unique().notNull(),
+  // Lets us invalidate all tokens for a user on password change or logout all.
+  family: uuid("family").notNull().defaultRandom(),
+  isRevoked: boolean("is_revoked").notNull().default(false),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  // Tracks which device/client issued the token for audit purposes.
+  userAgent: text("user_agent"),
+  ip: varchar("ip"),
+});
+
+export const otpTable = pgTable("otps", {
+  ...defaultFields,
+  phone: varchar("phone").notNull(),
+  code: varchar("code").notNull(),
+  isUsed: boolean("is_used").notNull().default(false),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
+// ─────────────────────────────────────────
 // Inferred Types - I moved these to the files in which they are used
 // ─────────────────────────────────────────

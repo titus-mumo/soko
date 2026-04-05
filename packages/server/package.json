@@ -2,11 +2,21 @@
   "name": "server",
   "module": "index.ts",
   "type": "module",
-  "private": true,
+  "scripts": {
+    "dev": "bun run src/index.ts"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
   "peerDependencies": {
     "typescript": "^5"
+  },
+  "dependencies": {
+    "@elysiajs/cookie": "^0.8.0",
+    "@elysiajs/cors": "^1.4.1",
+    "@elysiajs/jwt": "^1.4.1",
+    "@elysiajs/openapi": "^1.4.14",
+    "db-operations": "workspace:*",
+    "elysia": "^1.4.28"
   }
 }

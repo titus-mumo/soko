@@ -31,6 +31,54 @@ export class UserRepository {
     return publicUser as PublicUser;
   }
 
+  async findUserByEmail(email: string): Promise<FindUserResponse> {
+    const [res] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.email, email));
+
+    if (!res) return "user_not_found";
+
+    const { passwordHash: _passwordHash, ...publicUser } = res;
+    return publicUser as PublicUser;
+  }
+
+  async findUserByPhone(phone: string): Promise<FindUserResponse> {
+    const [res] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.phone, phone));
+
+    if (!res) return "user_not_found";
+
+    const { passwordHash: _passwordHash, ...publicUser } = res;
+    return publicUser as PublicUser;
+  }
+
+  // Used for email+password and phone+password login.
+  // Pass null for pass if the user signed up via OAuth or OTP.
+  async findUserByEmailOrPhone(
+    subject: string,
+    pass: string | null,
+  ): Promise<FindUserResponse> {
+    const [res] = await db
+      .select()
+      .from(usersTable)
+      .where(or(eq(usersTable.email, subject), eq(usersTable.phone, subject)));
+
+    if (!res) return "user_not_found";
+
+    if (res.passwordHash) {
+      if (!pass) return "incorrect_password";
+
+      const isPasswordCorrect = Bun.password.verifySync(pass, res.passwordHash);
+      if (!isPasswordCorrect) return "incorrect_password";
+    }
+
+    const { passwordHash: _passwordHash, ...publicUser } = res;
+    return publicUser as PublicUser;
+  }
+
   async findUserByEmailOrName(
     subject: string,
     pass: string | null,
@@ -43,13 +91,10 @@ export class UserRepository {
     if (!res) return "user_not_found";
 
     if (res.passwordHash) {
-      if (!pass) {
-        return "incorrect_password";
-      }
+      if (!pass) return "incorrect_password";
+
       const isPasswordCorrect = Bun.password.verifySync(pass, res.passwordHash);
-      if (!isPasswordCorrect) {
-        return "incorrect_password";
-      }
+      if (!isPasswordCorrect) return "incorrect_password";
     }
 
     const { passwordHash: _passwordHash, ...publicUser } = res;
