@@ -9,14 +9,11 @@ import {
   googleCallbackController,
   refreshTokenController,
   logoutController,
-  logoutAllController,
 } from "../controllers/auth.controller";
+import { logoutAll } from "../services/auth.service";
+import { verifyAccessToken } from "../lib/jwt";
 
 export const authRoutes = new Elysia({ prefix: "/auth" })
-
-  // ─────────────────────────────────────────
-  // Email + Password
-  // ─────────────────────────────────────────
 
   .post("/register", registerWithEmailController, {
     body: t.Object({
@@ -34,10 +31,6 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
     }),
   })
 
-  // ─────────────────────────────────────────
-  // Phone OTP
-  // ─────────────────────────────────────────
-
   .post("/otp/request", requestOtpController, {
     body: t.Object({
       phone: t.String({ minLength: 10 }),
@@ -48,14 +41,9 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
     body: t.Object({
       phone: t.String({ minLength: 10 }),
       code: t.String({ minLength: 6, maxLength: 6 }),
-      // name is optional — only required for new users registering via OTP.
       name: t.Optional(t.String({ minLength: 2 })),
     }),
   })
-
-  // ─────────────────────────────────────────
-  // Google OAuth
-  // ─────────────────────────────────────────
 
   .get("/google", googleRedirectController)
 
@@ -66,18 +54,45 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
     }),
   })
 
-  // ─────────────────────────────────────────
-  // Token Refresh
-  // ─────────────────────────────────────────
+  .post("/refresh", refreshTokenController)
 
-  .post("/refresh", refreshTokenController);
+  // Protected routes scoped inside a group with authMiddleware applied.
+  .group("/protected", (app) =>
+    app
+      .use(authMiddleware)
+      .post("/logout", logoutController)
+      .post("/logout-all", async (ctx) => {
+        const authHeader = ctx.request.headers.get("authorization");
 
-// Logout routes are separated into a protected group since
-// logout-all requires a valid access token.
-export const protectedAuthRoutes = new Elysia({ prefix: "/auth" })
-  .use(authMiddleware)
+        if (!authHeader || !authHeader.startsWith("Bearer ")) {
+          ctx.set.status = 401;
+          return { success: false, message: "Access token is required." };
+        }
 
-  .post("/logout", logoutController)
+        const token = authHeader.split(" ")[1];
+        const payload = await verifyAccessToken(token);
 
-  // Revokes all sessions across all devices.
-  .post("/logout-all", logoutAllController);
+        if (!payload) {
+          ctx.set.status = 401;
+          return {
+            success: false,
+            message: "Invalid or expired access token.",
+          };
+        }
+
+        console.log("userId from token:", payload.userId);
+
+        await logoutAll(payload.userId);
+
+        ctx.cookie["refresh_token"].set({
+          value: "",
+          httpOnly: true,
+          secure: Bun.env.NODE_ENV === "production",
+          sameSite: "strict",
+          maxAge: 0,
+          path: "/auth/refresh",
+        });
+
+        return { success: true, message: "Logged out from all devices." };
+      }),
+  );

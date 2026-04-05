@@ -2,6 +2,6 @@ sample user
 {
   "name": "Saki Mwangi",
   "email": "tituskennedy74@gmail.com",
-  "phone": "0701901186",
+  "phone": "+254701901186",
   "password": "password123"
 }

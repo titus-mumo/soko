@@ -1,7 +1,7 @@
 import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors"; // Import CORS plugin
 import { openapi } from "@elysiajs/openapi";
-import { authRoutes, protectedAuthRoutes } from "./routes/auth.route";
+import { authRoutes } from "./routes/auth.route";
 
 const checkSoko = "soko server is running!";
 
@@ -39,7 +39,6 @@ const App = new Elysia()
   })
   .use(openapi())
   .get("/", () => checkSoko)
-  .use(authRoutes)
-  .use(protectedAuthRoutes);
+  .use(authRoutes);
 
 export default App;

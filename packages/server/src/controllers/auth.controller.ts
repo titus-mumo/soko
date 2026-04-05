@@ -291,13 +291,13 @@ export async function logoutController(ctx: Context) {
   return { success: true, message: "Logged out successfully." };
 }
 
-export async function logoutAllController(ctx: Context) {
-  // userId is injected by the auth middleware after access token verification.
-  const userId = (ctx as any).userId as string;
+// export async function logoutAllController(ctx: Context) {
+//   // userId is injected by the auth middleware after access token verification.
+//   const userId = (ctx as any).userId as string;
 
-  await logoutAll(userId);
+//   await logoutAll(userId);
 
-  clearRefreshTokenCookie(ctx);
+//   clearRefreshTokenCookie(ctx);
 
-  return { success: true, message: "Logged out from all devices." };
-}
+//   return { success: true, message: "Logged out from all devices." };
+// }
