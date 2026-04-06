@@ -1,7 +1,19 @@
 import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors"; // Import CORS plugin
 import { openapi } from "@elysiajs/openapi";
-import { authRoutes } from "./routes/auth.route";
+import { authRoutes } from "./routes/auth.routes";
+import { userRoutes } from "./routes/user.routes";
+import { sellerRoutes } from "./routes/seller.routes";
+import { categoryRoutes } from "./routes/category/index";
+import { productRoutes } from "./routes/product/index";
+import { cartRoutes } from "./routes/cart.routes";
+import { orderRoutes } from "./routes/order.routes";
+import { paymentRoutes } from "./routes/payment.routes";
+import { deliveryRoutes } from "./routes/delivery.routes";
+import { reviewRoutes } from "./routes/review.routes";
+import { disputeRoutes } from "./routes/dispute.routes";
+import { promotionRoutes } from "./routes/promotion.routes";
+import { notificationRoutes } from "./routes/notification.routes";
 
 const checkSoko = "soko server is running!";
 
@@ -39,6 +51,23 @@ const App = new Elysia()
   })
   .use(openapi())
   .get("/", () => checkSoko)
-  .use(authRoutes);
+  .get("/test-auth", async (ctx) => {
+    const authHeader = ctx.request.headers.get("authorization");
+    console.log("auth header:", authHeader);
+    return { authHeader };
+  })
+  .use(authRoutes)
+  .use(userRoutes)
+  .use(sellerRoutes)
+  .use(categoryRoutes)
+  .use(productRoutes)
+  .use(cartRoutes)
+  .use(orderRoutes)
+  .use(paymentRoutes)
+  .use(deliveryRoutes)
+  .use(reviewRoutes)
+  .use(disputeRoutes)
+  .use(promotionRoutes)
+  .use(notificationRoutes);
 
 export default App;

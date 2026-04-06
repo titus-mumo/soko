@@ -1,5 +1,5 @@
 import Elysia, { t } from "elysia";
-import { authMiddleware } from "../middleware/auth.middleware";
+import { authPlugin } from "src/middleware/auth.middleware";
 import {
   registerWithEmailController,
   loginWithEmailController,
@@ -59,7 +59,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
   // Protected routes scoped inside a group with authMiddleware applied.
   .group("/protected", (app) =>
     app
-      .use(authMiddleware)
+      .use(authPlugin)
       .post("/logout", logoutController)
       .post("/logout-all", async (ctx) => {
         const authHeader = ctx.request.headers.get("authorization");

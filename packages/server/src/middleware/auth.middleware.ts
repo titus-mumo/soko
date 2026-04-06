@@ -1,64 +1,92 @@
 import Elysia from "elysia";
 import { verifyAccessToken } from "../lib/jwt";
 
+const getPayload = async (request: Request) => {
+  const authHeader = request.headers.get("authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+  const token = authHeader.split(" ")[1];
+  if (!token) return null;
+  return await verifyAccessToken(token);
+};
+
 // ─────────────────────────────────────────
-// Auth Middleware Plugin
+// Auth Plugin — any logged in user
 // ─────────────────────────────────────────
 
-export const authMiddleware = new Elysia({ name: "auth-middleware" }).derive(
-  async ({ request, set }) => {
-    const authHeader = request.headers.get("authorization");
-
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      set.status = 401;
-      throw new Error("Access token is required.");
-    }
-
-    const token = authHeader.split(" ")[1];
-
-    if (!token) {
-      set.status = 401;
-      throw new Error("Access token is malformed.");
-    }
-
-    const payload = await verifyAccessToken(token);
-
-    if (!payload) {
-      set.status = 401;
-      throw new Error("Invalid or expired access token.");
-    }
-
-    return {
-      userId: payload.userId,
-      role: payload.role as "buyer" | "seller" | "admin",
-    };
-  },
-);
+export const authPlugin = () =>
+  new Elysia()
+    .derive(async ({ request }) => {
+      console.log("AUTH PLUGIN RUNNING 🔐");
+      const payload = await getPayload(request);
+      return {
+        userId: payload?.userId ?? null,
+        role: payload?.role ?? null,
+      };
+    })
+    .onBeforeHandle(({ userId, set }: any) => {
+      if (!userId) {
+        set.status = 401;
+        throw new Error("Access token is required.");
+      }
+    });
 
 // ─────────────────────────────────────────
 // Role Guard Plugins
 // ─────────────────────────────────────────
 
-export function requireRole(...roles: Array<"buyer" | "seller" | "admin">) {
-  return new Elysia({ name: `require-role-${roles.join("-")}` })
-    .use(authMiddleware)
-    .onBeforeHandle((ctx: any) => {
-      if (!roles.includes(ctx.role)) {
-        ctx.set.status = 403;
-        throw new Error("You do not have permission to access this resource.");
+export const adminPlugin = () =>
+  new Elysia()
+    .derive(async ({ request }) => {
+      const payload = await getPayload(request);
+      return {
+        userId: payload?.userId ?? null,
+        role: payload?.role ?? null,
+      };
+    })
+    .onBeforeHandle(({ userId, role, set }: any) => {
+      if (!userId) {
+        set.status = 401;
+        throw new Error("Access token is required.");
+      } else if (role !== "admin") {
+        set.status = 403;
+        throw new Error("Admin access required.");
       }
     });
-}
 
-// ─────────────────────────────────────────
-// Shorthand Role Guards
-// ─────────────────────────────────────────
+export const sellerPlugin = () =>
+  new Elysia()
+    .derive(async ({ request }) => {
+      const payload = await getPayload(request);
+      return {
+        userId: payload?.userId ?? null,
+        role: payload?.role ?? null,
+      };
+    })
+    .onBeforeHandle(({ userId, role, set }: any) => {
+      if (!userId) {
+        set.status = 401;
+        throw new Error("Access token is required.");
+      } else if (!["seller", "admin"].includes(role)) {
+        set.status = 403;
+        throw new Error("Seller access required.");
+      }
+    });
 
-// Admin only — full platform access.
-export const requireAdmin = requireRole("admin");
-
-// Sellers and admins — store and product management.
-export const requireSeller = requireRole("seller", "admin");
-
-// Buyers and admins — shopping and order management.
-export const requireBuyer = requireRole("buyer", "admin");
+export const buyerPlugin = () =>
+  new Elysia()
+    .derive(async ({ request }) => {
+      const payload = await getPayload(request);
+      return {
+        userId: payload?.userId ?? null,
+        role: payload?.role ?? null,
+      };
+    })
+    .onBeforeHandle(({ userId, role, set }: any) => {
+      if (!userId) {
+        set.status = 401;
+        throw new Error("Access token is required.");
+      } else if (!["buyer", "admin"].includes(role)) {
+        set.status = 403;
+        throw new Error("Buyer access required.");
+      }
+    });
