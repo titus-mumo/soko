@@ -1,7 +1,7 @@
 import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors"; // Import CORS plugin
 import { openapi } from "@elysiajs/openapi";
-import { authRoutes } from "./routes/auth.routes";
+import { authRoutes } from "./routes/auth";
 import { userRoutes } from "./routes/user";
 import { sellerRoutes } from "./routes/seller";
 import { categoryRoutes } from "./routes/category";
