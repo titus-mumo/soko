@@ -1,0 +1,25 @@
+import Elysia from "elysia";
+import { authPlugin } from "../../middleware/auth.middleware";
+import { getCartItems, getCartSummary } from "../../services/cart.service";
+
+export const GetCartItems = new Elysia()
+  .use(authPlugin)
+  .get("/", async (ctx) => {
+    const { userId } = ctx as any;
+    const result = await getCartItems(userId);
+    return { success: true, data: result };
+  });
+
+export const GetCartSummary = new Elysia()
+  .use(authPlugin)
+  .get("/summary", async (ctx) => {
+    const { userId, set } = ctx as any;
+    const result = await getCartSummary(userId);
+
+    if (result === "cart_not_found") {
+      set.status = 404;
+      return { success: false, message: "Cart not found." };
+    }
+
+    return { success: true, data: result };
+  });
