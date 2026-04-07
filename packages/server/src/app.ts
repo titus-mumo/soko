@@ -12,7 +12,7 @@ import { paymentRoutes } from "./routes/payment";
 import { deliveryRoutes } from "./routes/delivery";
 import { reviewRoutes } from "./routes/review";
 import { disputeRoutes } from "./routes/dispute";
-import { promotionRoutes } from "./routes/promotion.routes";
+import { promotionRoutes } from "./routes/promotion";
 import { notificationRoutes } from "./routes/notification.routes";
 
 const checkSoko = "soko server is running!";
