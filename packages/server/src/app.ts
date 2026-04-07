@@ -7,7 +7,7 @@ import { sellerRoutes } from "./routes/seller.routes";
 import { categoryRoutes } from "./routes/category";
 import { productRoutes } from "./routes/product";
 import { cartRoutes } from "./routes/cart";
-import { orderRoutes } from "./routes/order.routes";
+import { orderRoutes } from "./routes/order";
 import { paymentRoutes } from "./routes/payment.routes";
 import { deliveryRoutes } from "./routes/delivery.routes";
 import { reviewRoutes } from "./routes/review.routes";
