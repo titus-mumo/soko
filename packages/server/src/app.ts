@@ -2,7 +2,7 @@ import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors"; // Import CORS plugin
 import { openapi } from "@elysiajs/openapi";
 import { authRoutes } from "./routes/auth.routes";
-import { userRoutes } from "./routes/user.routes";
+import { userRoutes } from "./routes/user";
 import { sellerRoutes } from "./routes/seller.routes";
 import { categoryRoutes } from "./routes/category";
 import { productRoutes } from "./routes/product";

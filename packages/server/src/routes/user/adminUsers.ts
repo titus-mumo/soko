@@ -1,0 +1,82 @@
+import Elysia, { t } from "elysia";
+import { adminPlugin } from "../../middleware/auth.middleware";
+import {
+  getAllUsers,
+  getUserById,
+  updateUserRole,
+  verifyUser,
+  deleteUser,
+} from "../../services/user.service";
+
+export const GetAllUsers = new Elysia()
+  .use(adminPlugin)
+  .get("/admin", async () => {
+    const result = await getAllUsers();
+    return { success: true, data: result };
+  });
+
+export const GetUserByIdAdmin = new Elysia()
+  .use(adminPlugin)
+  .get("/admin/:userId", async (ctx) => {
+    const { params, set } = ctx as any;
+    const result = await getUserById(params.userId);
+
+    if (result === "user_not_found") {
+      set.status = 404;
+      return { success: false, message: "User not found." };
+    }
+
+    return { success: true, data: result };
+  });
+
+export const UpdateUserRole = new Elysia().use(adminPlugin).patch(
+  "/admin/:userId/role",
+  async (ctx) => {
+    const { params, body, set } = ctx as any;
+    const result = await updateUserRole(params.userId, body.role);
+
+    if (result === "user_not_found") {
+      set.status = 404;
+      return { success: false, message: "User not found." };
+    }
+
+    return { success: true, message: "User role updated successfully." };
+  },
+  {
+    body: t.Object({
+      role: t.Union([
+        t.Literal("buyer"),
+        t.Literal("seller"),
+        t.Literal("admin"),
+      ]),
+    }),
+  },
+);
+
+export const VerifyUser = new Elysia()
+  .use(adminPlugin)
+  .patch("/admin/:userId/verify", async (ctx) => {
+    const { params, set } = ctx as any;
+    const result = await verifyUser(params.userId);
+
+    if (result === "user_not_found") {
+      set.status = 404;
+      return { success: false, message: "User not found." };
+    }
+
+    return { success: true, message: "User verified successfully." };
+  });
+
+export const DeleteUser = new Elysia()
+  .use(adminPlugin)
+  .delete("/admin/:userId", async (ctx) => {
+    const { params, set } = ctx as any;
+    const result = await deleteUser(params.userId);
+
+    if (result === "user_not_found") {
+      set.status = 404;
+      return { success: false, message: "User not found." };
+    }
+
+    return { success: true, message: "User deleted successfully." };
+  });
