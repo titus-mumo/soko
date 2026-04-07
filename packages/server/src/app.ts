@@ -10,7 +10,7 @@ import { cartRoutes } from "./routes/cart";
 import { orderRoutes } from "./routes/order";
 import { paymentRoutes } from "./routes/payment";
 import { deliveryRoutes } from "./routes/delivery";
-import { reviewRoutes } from "./routes/review.routes";
+import { reviewRoutes } from "./routes/review";
 import { disputeRoutes } from "./routes/dispute.routes";
 import { promotionRoutes } from "./routes/promotion.routes";
 import { notificationRoutes } from "./routes/notification.routes";
