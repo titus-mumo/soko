@@ -20,7 +20,7 @@ const checkSoko = "soko server is running!";
 const App = new Elysia()
   .use(
     cors({
-      origin: "*", // Allow all origins for dev; specify your frontend URL (e.g., 'http://localhost:3000') for production
+      origin: Bun.env.FRONTEND_URL || "http://localhost:3000", // Allow all origins for dev; specify your frontend URL (e.g., 'http://localhost:3000') for production
       methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // Allowed HTTP methods
       allowedHeaders: ["Content-Type", "Authorization"], // Allowed headers
       credentials: true, // Enable if your frontend sends cookies or auth headers

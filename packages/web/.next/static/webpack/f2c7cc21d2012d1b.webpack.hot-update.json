@@ -1,0 +1,9 @@
+{
+  "c": [
+    "app/(dashboard)/dashboard/page",
+    "app/(dashboard)/cart/page",
+    "webpack"
+  ],
+  "r": [],
+  "m": []
+}
