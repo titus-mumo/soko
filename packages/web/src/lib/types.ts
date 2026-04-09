@@ -119,7 +119,7 @@ export interface Notification {
   id: string;
   type: NotificationType;
   title: string;
-  message: string;
+  body: string;
   read: boolean;
   createdAt: string;
   metadata?: Record<string, unknown>;

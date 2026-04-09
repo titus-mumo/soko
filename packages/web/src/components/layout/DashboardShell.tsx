@@ -31,6 +31,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      //Admin should not access this page
+      if (user.role === "admin") {
+        router.replace("/admin");
+      }
+
       if (!accessToken) {
         // User survived refresh (persisted) but token is gone — silently renew
         axios

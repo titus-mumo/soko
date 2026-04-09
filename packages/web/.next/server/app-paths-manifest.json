@@ -1,7 +1,16 @@
 {
-  "/(dashboard)/cart/page": "app/(dashboard)/cart/page.js",
-  "/(dashboard)/notifications/page": "app/(dashboard)/notifications/page.js",
+  "/(dashboard)/categories/[slug]/page": "app/(dashboard)/categories/[slug]/page.js",
+  "/(dashboard)/products/page": "app/(dashboard)/products/page.js",
   "/(dashboard)/orders/page": "app/(dashboard)/orders/page.js",
-  "/(auth)/login/page": "app/(auth)/login/page.js",
-  "/(dashboard)/dashboard/page": "app/(dashboard)/dashboard/page.js"
+  "/(dashboard)/categories/page": "app/(dashboard)/categories/page.js",
+  "/(dashboard)/notifications/page": "app/(dashboard)/notifications/page.js",
+  "/(dashboard)/cart/page": "app/(dashboard)/cart/page.js",
+  "/(admin)/admin/categories/page": "app/(admin)/admin/categories/page.js",
+  "/(admin)/admin/orders/page": "app/(admin)/admin/orders/page.js",
+  "/(admin)/admin/users/page": "app/(admin)/admin/users/page.js",
+  "/(admin)/admin/delivery/page": "app/(admin)/admin/delivery/page.js",
+  "/(admin)/admin/disputes/page": "app/(admin)/admin/disputes/page.js",
+  "/(admin)/admin/promotions/page": "app/(admin)/admin/promotions/page.js",
+  "/(admin)/admin/notifications/page": "app/(admin)/admin/notifications/page.js",
+  "/(admin)/admin/page": "app/(admin)/admin/page.js"
 }

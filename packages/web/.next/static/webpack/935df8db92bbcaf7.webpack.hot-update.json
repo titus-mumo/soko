@@ -1,8 +1,0 @@
-{
-  "c": ["app/layout", "app/(dashboard)/products/page", "webpack"],
-  "r": [],
-  "m": [
-    "(app-pages-browser)/./src/components/ui/Select.tsx",
-    "(app-pages-browser)/./src/lib/products.api.ts"
-  ]
-}

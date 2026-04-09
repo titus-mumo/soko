@@ -235,6 +235,6 @@ function SellerDashboard() {
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
-  const isSeller = user?.role === "seller" || user?.role === "admin";
+  const isSeller = user?.role === "seller";
   return isSeller ? <SellerDashboard /> : <BuyerDashboard />;
 }

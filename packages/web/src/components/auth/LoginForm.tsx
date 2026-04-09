@@ -31,7 +31,8 @@ export function LoginForm() {
     try {
       const { data } = await api.post("/auth/login", values);
       setAuth(data.data.accessToken, data.data.user);
-      router.replace("/dashboard");
+      const isAdmin = data.data.user.role === "admin";
+      isAdmin ? router.replace("/admin") : router.replace("/dashboard");
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { message?: string } } }).response?.data

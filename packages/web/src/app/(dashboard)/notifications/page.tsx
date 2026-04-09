@@ -241,7 +241,7 @@ export default function NotificationsPage() {
                   )}
                 </div>
                 <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2">
-                  {notif.message}
+                  {notif.body}
                 </p>
                 <p className="mt-1 text-[11px] text-zinc-400 dark:text-zinc-600">
                   {new Date(notif.createdAt).toLocaleDateString("en-KE", {
