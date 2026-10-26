@@ -16,7 +16,7 @@ const getPayload = async (request: Request) => {
 export const authPlugin = () =>
   new Elysia()
     .derive(async ({ request }) => {
-      console.log("AUTH PLUGIN RUNNING 🔐");
+      if (Bun.env.NODE_ENV !== "test") console.log("AUTH PLUGIN RUNNING 🔐");
       const payload = await getPayload(request);
       return {
         userId: payload?.userId ?? null,
@@ -26,7 +26,7 @@ export const authPlugin = () =>
     .onBeforeHandle(({ userId, set }: any) => {
       if (!userId) {
         set.status = 401;
-        throw new Error("Access token is required.");
+        return { success: false, message: "Access token is required." };
       }
     });
 
@@ -46,10 +46,11 @@ export const adminPlugin = () =>
     .onBeforeHandle(({ userId, role, set }: any) => {
       if (!userId) {
         set.status = 401;
-        throw new Error("Access token is required.");
-      } else if (role !== "admin") {
+        return { success: false, message: "Access token is required." };
+      }
+      if (role !== "admin") {
         set.status = 403;
-        throw new Error("Admin access required.");
+        return { success: false, message: "Admin access required." };
       }
     });
 
@@ -65,10 +66,11 @@ export const sellerPlugin = () =>
     .onBeforeHandle(({ userId, role, set }: any) => {
       if (!userId) {
         set.status = 401;
-        throw new Error("Access token is required.");
-      } else if (!["seller", "admin"].includes(role)) {
+        return { success: false, message: "Access token is required." };
+      }
+      if (!["seller", "admin"].includes(role)) {
         set.status = 403;
-        throw new Error("Seller access required.");
+        return { success: false, message: "Seller access required." };
       }
     });
 
@@ -84,9 +86,10 @@ export const buyerPlugin = () =>
     .onBeforeHandle(({ userId, role, set }: any) => {
       if (!userId) {
         set.status = 401;
-        throw new Error("Access token is required.");
-      } else if (!["buyer", "admin"].includes(role)) {
+        return { success: false, message: "Access token is required." };
+      }
+      if (!["buyer", "admin"].includes(role)) {
         set.status = 403;
-        throw new Error("Buyer access required.");
+        return { success: false, message: "Buyer access required." };
       }
     });

@@ -1,5 +1,5 @@
 import { getRepositories } from "../lib/repositories";
-import type { NewUser } from "db-operations";
+import { normalizePhone, type NewUser, type PageParams } from "db-operations";
 
 const { userRepository, userAddressRepository, notificationRepository } =
   getRepositories();
@@ -35,7 +35,9 @@ export async function updateProfile(
 
   // Check phone uniqueness if phone is being changed.
   if (data.phone) {
-    const existing = await userRepository.findUserByPhone(data.phone);
+    const phone = normalizePhone(data.phone);
+    data = { ...data, phone };
+    const existing = await userRepository.findUserByPhone(phone);
     if (existing !== "user_not_found" && (existing as any).id !== userId) {
       return "phone_taken";
     }
@@ -51,9 +53,13 @@ export async function changePassword(
   userId: string,
   data: { currentPassword: string; newPassword: string },
 ): Promise<"user_not_found" | "incorrect_password" | "password_changed"> {
-  // Re-authenticate with current password before allowing the change.
+  // Re-authenticate with the current password before allowing the change.
+  // The login lookup takes an email or phone, not an id.
+  const account = await userRepository.findUserById(userId);
+  if (!account) return "user_not_found";
+
   const user = await userRepository.findUserByEmailOrPhone(
-    userId,
+    account.email,
     data.currentPassword,
   );
 
@@ -137,8 +143,8 @@ export async function removeAddress(userId: string, addressId: string) {
 // Admin
 // ─────────────────────────────────────────
 
-export async function getAllUsers() {
-  return await userRepository.findAllUsers();
+export async function getAllUsers(page?: PageParams) {
+  return await userRepository.pageUsers(page);
 }
 
 export async function updateUserRole(

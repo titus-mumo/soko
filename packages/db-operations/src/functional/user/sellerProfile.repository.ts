@@ -1,6 +1,6 @@
 import { db } from "src/db";
 import { sellerProfilesTable } from "src/schema";
-import { eq, isNull } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 export type SellerProfile = typeof sellerProfilesTable.$inferSelect;
 export type NewSellerProfile = typeof sellerProfilesTable.$inferInsert;
@@ -23,20 +23,35 @@ export class SellerProfileRepository {
     const [res] = await db
       .select()
       .from(sellerProfilesTable)
-      .where(eq(sellerProfilesTable.id, id));
+      .where(
+        and(
+          eq(sellerProfilesTable.id, id),
+          isNull(sellerProfilesTable.deletedAt),
+        ),
+      );
 
     if (!res) return "seller_not_found";
 
     return res;
   }
 
+  // Closed (soft-deleted) stores are excluded unless includeDeleted is set —
+  // onboarding needs to see them because user_id is unique.
   async findSellerProfileByUserId(
     userId: string,
+    { includeDeleted = false } = {},
   ): Promise<FindSellerProfileResponse> {
     const [res] = await db
       .select()
       .from(sellerProfilesTable)
-      .where(eq(sellerProfilesTable.userId, userId));
+      .where(
+        includeDeleted
+          ? eq(sellerProfilesTable.userId, userId)
+          : and(
+              eq(sellerProfilesTable.userId, userId),
+              isNull(sellerProfilesTable.deletedAt),
+            ),
+      );
 
     if (!res) return "seller_not_found";
 
@@ -49,7 +64,12 @@ export class SellerProfileRepository {
     const [res] = await db
       .select()
       .from(sellerProfilesTable)
-      .where(eq(sellerProfilesTable.storeSlug, slug));
+      .where(
+        and(
+          eq(sellerProfilesTable.storeSlug, slug),
+          isNull(sellerProfilesTable.deletedAt),
+        ),
+      );
 
     if (!res) return "seller_not_found";
 

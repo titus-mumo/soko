@@ -5,6 +5,7 @@ import {
   updateProfile,
   changePassword,
 } from "../../services/user.service";
+import { selfUser } from "../../lib/views";
 
 export const GetUserProfile = new Elysia()
   .use(authPlugin)
@@ -17,7 +18,7 @@ export const GetUserProfile = new Elysia()
       return { success: false, message: "User not found." };
     }
 
-    return { success: true, data: result };
+    return { success: true, data: selfUser(result) };
   });
 
 export const UpdateUserProfile = new Elysia().use(authPlugin).patch(
@@ -39,7 +40,7 @@ export const UpdateUserProfile = new Elysia().use(authPlugin).patch(
       return { success: false, message: "Phone number is already in use." };
     }
 
-    return { success: true, data: result };
+    return { success: true, data: result && selfUser(result) };
   },
   {
     body: t.Object({

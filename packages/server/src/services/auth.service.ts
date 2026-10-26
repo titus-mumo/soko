@@ -6,7 +6,7 @@ import {
 } from "../lib/jwt";
 import { sendOtp, verifyOtpWithTwilio } from "../lib/twilio";
 import { getGoogleAuthUrl, getGoogleUser } from "../lib/google";
-import type { PublicUser } from "db-operations";
+import { normalizePhone, type PublicUser } from "db-operations";
 
 const {
   userRepository,
@@ -81,7 +81,7 @@ export async function registerWithEmail(
   const user = await userRepository.insertUser({
     name: data.name,
     email: data.email,
-    phone: data.phone,
+    phone: normalizePhone(data.phone),
     passwordHash: data.password, // hashed inside the repository
     role: "buyer",
   });
@@ -126,9 +126,23 @@ export async function loginWithEmail(
 // Phone OTP
 // ─────────────────────────────────────────
 
+// Phone codes only sign in existing accounts; sign-up goes through
+// /auth/register or Google.
+async function findActiveUserByPhone(phone: string) {
+  const user = await userRepository.findUserByPhone(phone);
+  if (typeof user === "string" || user.deletedAt) return null;
+  return user;
+}
+
 export async function requestOtp(
   phone: string,
-): Promise<"otp_sent" | "failed_to_send"> {
+): Promise<"otp_sent" | "failed_to_send" | "user_not_found"> {
+  // Twilio needs E.164; accept 07…, 254… etc. like Daraja does.
+  phone = normalizePhone(phone);
+
+  // Don't send an SMS that can't lead to a sign-in.
+  if (!(await findActiveUserByPhone(phone))) return "user_not_found";
+
   // Twilio Verify handles code generation, storage, and expiry internally.
   const sent = await sendOtp(phone);
   if (!sent) return "failed_to_send";
@@ -139,46 +153,24 @@ export async function verifyOtp(
   data: {
     phone: string;
     code: string;
-    name?: string;
   },
   meta: { userAgent?: string; ip?: string },
 ): Promise<
   | AuthResponse
   | "otp_incorrect"
   | "otp_expired"
-  | "name_required"
+  | "user_not_found"
   | "otp_not_found"
   | "otp_used"
 > {
-  // Verify directly with Twilio — no DB lookup needed.
-  const isValid = await verifyOtpWithTwilio(data.phone, data.code);
+  const phone = normalizePhone(data.phone);
+
+  // Checked before Twilio so a code isn't spent on a number with no account.
+  const user = await findActiveUserByPhone(phone);
+  if (!user) return "user_not_found";
+
+  const isValid = await verifyOtpWithTwilio(phone, data.code);
   if (!isValid) return "otp_incorrect";
-
-  let user = await userRepository.findUserByPhone(data.phone);
-
-  if (user === "user_not_found") {
-    if (!data.name) return "name_required";
-
-    const created = await userRepository.insertUser({
-      name: data.name,
-      phone: data.phone,
-      email: `${data.phone}@placeholder.soko`,
-      role: "buyer",
-    });
-
-    if (!created) throw new Error("Failed to create user");
-    user = created;
-
-    await notificationRepository.insertNotification({
-      userId: user.id,
-      type: "welcome",
-      title: "Welcome to Soko!",
-      body: "Your account has been created successfully.",
-      channel: "push",
-    });
-  }
-
-  if (typeof user === "string") throw new Error("Auth error");
 
   const family = crypto.randomUUID();
   const tokens = await issueTokens(user.id, user.role, family, meta);
@@ -203,6 +195,9 @@ export async function handleGoogleCallback(
 
   // Find existing user by email or create a new one.
   let user = await userRepository.findUserByEmail(googleUser.email);
+
+  // Deleted accounts can't sign back in.
+  if (typeof user !== "string" && user.deletedAt) return "google_auth_failed";
 
   if (user === "user_not_found") {
     const created = await userRepository.insertUser({

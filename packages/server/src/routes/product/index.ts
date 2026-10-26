@@ -1,11 +1,16 @@
 import Elysia from "elysia";
 import {
+  BrowseProducts,
+  GetCatalogueStats,
   GetProductBySlug,
   GetProductsByCategory,
   GetProductsBySeller,
   GetProductVariants,
   GetProductImages,
   GetProductTags,
+  GetMyProducts,
+  GetMyProduct,
+  GetVariantDetails,
 } from "./getProducts";
 import { CreateProduct } from "./createProduct";
 import {
@@ -30,13 +35,18 @@ import { ReplaceProductTags } from "./productTags";
 export const productRoutes = new Elysia().group("/products", (app) =>
   app
     // Public
+    .use(BrowseProducts)
+    .use(GetCatalogueStats)
     .use(GetProductBySlug)
     .use(GetProductsByCategory)
     .use(GetProductsBySeller)
     .use(GetProductVariants)
     .use(GetProductImages)
     .use(GetProductTags)
+    .use(GetVariantDetails)
     // Seller — product management
+    .use(GetMyProducts)
+    .use(GetMyProduct)
     .use(CreateProduct)
     .use(UpdateProduct)
     .use(PublishProduct)

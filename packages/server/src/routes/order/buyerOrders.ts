@@ -1,18 +1,49 @@
 import Elysia, { t } from "elysia";
+import { pageParams, paged } from "../../lib/paging";
 import { authPlugin } from "../../middleware/auth.middleware";
+import type { OrderStatus } from "db-operations";
 import {
   placeOrder,
   getBuyerOrders,
+  getBuyerOrderStats,
   getBuyerOrderById,
   cancelOrder,
 } from "../../services/order.service";
+import { buyerOrder, buyerOrderItem } from "../../lib/views";
+import { shownStock } from "../../lib/views";
+
+const ORDER_STATUSES: OrderStatus[] = [
+  "pending",
+  "confirmed",
+  "processing",
+  "dropped_off",
+  "at_hub",
+  "shipped",
+  "delivered",
+  "cancelled",
+  "refunded",
+];
+
+export const GetBuyerOrderStats = new Elysia()
+  .use(authPlugin)
+  .get("/me/stats", async (ctx) => {
+    const { userId } = ctx as any;
+    return { success: true, data: await getBuyerOrderStats(userId) };
+  });
 
 export const GetBuyerOrders = new Elysia()
   .use(authPlugin)
   .get("/me", async (ctx) => {
-    const { userId } = ctx as any;
-    const result = await getBuyerOrders(userId);
-    return { success: true, data: result };
+    const { userId, query, set } = ctx as any;
+    const status = query?.status as OrderStatus | undefined;
+    if (status && !ORDER_STATUSES.includes(status)) {
+      set.status = 400;
+      return { success: false, message: "Unknown order status." };
+    }
+    return paged(
+      await getBuyerOrders(userId, pageParams(query), status),
+      buyerOrder,
+    );
   });
 
 export const GetBuyerOrderById = new Elysia()
@@ -26,7 +57,13 @@ export const GetBuyerOrderById = new Elysia()
       return { success: false, message: "Order not found." };
     }
 
-    return { success: true, data: result };
+    return {
+      success: true,
+      data: {
+        order: buyerOrder(result.order),
+        items: result.items.map(buyerOrderItem),
+      },
+    };
   });
 
 export const PlaceOrder = new Elysia().use(authPlugin).post(
@@ -61,11 +98,17 @@ export const PlaceOrder = new Elysia().use(authPlugin).post(
         message: "One or more products are no longer available.",
       };
     }
-    if (result === "insufficient_stock") {
+    if (typeof result === "object" && "insufficientStock" in result) {
       set.status = 400;
       return {
         success: false,
-        message: "Insufficient stock for one or more items.",
+        code: "INSUFFICIENT_STOCK",
+        variantId: result.variantId,
+        available: shownStock(result.available),
+        message:
+          result.available > 0
+            ? `Only ${shownStock(result.available)} of an item in your cart ${result.available === 1 ? "is" : "are"} left. Update your cart to continue.`
+            : "An item in your cart just sold out. Remove it to continue.",
       };
     }
 

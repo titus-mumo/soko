@@ -1,4 +1,7 @@
 import {
+  SearchRepository,
+  CatalogueRepository,
+  StockRepository,
   UserRepository,
   UserAddressRepository,
   SellerProfileRepository,
@@ -25,6 +28,7 @@ import {
   RefreshTokenRepository,
   OtpRepository,
 } from "db-operations";
+import { CART_HOLD_MINUTES } from "./stock";
 
 // Instantiated once and reused across the entire server lifetime.
 const repositories = {
@@ -54,6 +58,9 @@ const repositories = {
 
   // Delivery
   deliveryZoneRepository: new DeliveryZoneRepository(),
+  searchRepository: new SearchRepository(),
+  stockRepository: new StockRepository(CART_HOLD_MINUTES),
+  catalogueRepository: new CatalogueRepository(CART_HOLD_MINUTES),
   shipmentRepository: new ShipmentRepository(),
   shipmentEventRepository: new ShipmentEventRepository(),
 

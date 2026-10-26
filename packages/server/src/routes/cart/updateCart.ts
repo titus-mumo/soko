@@ -1,9 +1,11 @@
 import Elysia, { t } from "elysia";
+import { stockMessage } from "../../lib/stock";
 import { authPlugin } from "../../middleware/auth.middleware";
 import {
   updateCartItemQuantity,
   incrementCartItem,
 } from "../../services/cart.service";
+import { shownStock } from "../../lib/views";
 
 export const UpdateCartItemQuantity = new Elysia().use(authPlugin).patch(
   "/:cartItemId/quantity",
@@ -25,9 +27,15 @@ export const UpdateCartItemQuantity = new Elysia().use(authPlugin).patch(
       return { success: false, message: "Cart item not found." };
     }
 
-    if (result === "insufficient_stock") {
+    if (typeof result === "object" && result && "insufficientStock" in result) {
       set.status = 400;
-      return { success: false, message: "Insufficient stock available." };
+      return {
+        success: false,
+        code: "INSUFFICIENT_STOCK",
+        available: shownStock(result.available),
+        inCart: result.inCart,
+        message: stockMessage(result.available, result.inCart),
+      };
     }
 
     return { success: true, data: result };
@@ -59,9 +67,15 @@ export const AdjustCartItemQuantity = new Elysia().use(authPlugin).patch(
       return { success: false, message: "Cart item not found." };
     }
 
-    if (result === "insufficient_stock") {
+    if (typeof result === "object" && result && "insufficientStock" in result) {
       set.status = 400;
-      return { success: false, message: "Insufficient stock available." };
+      return {
+        success: false,
+        code: "INSUFFICIENT_STOCK",
+        available: shownStock(result.available),
+        inCart: result.inCart,
+        message: stockMessage(result.available, result.inCart),
+      };
     }
 
     return { success: true, data: result };

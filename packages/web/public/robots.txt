@@ -1,0 +1,18 @@
+# Soko
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /cart
+Disallow: /checkout
+Disallow: /orders
+Disallow: /notifications
+Disallow: /profile
+Disallow: /reviews
+Disallow: /disputes
+Disallow: /seller/
+Disallow: /auth/
+Disallow: /otp
+
+# Update this to your production origin before launch.
+Sitemap: http://localhost:3000/sitemap.xml

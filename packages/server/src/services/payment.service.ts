@@ -1,4 +1,5 @@
 import { getRepositories } from "../lib/repositories";
+import { notifySellersOfPaidOrder, orderRef } from "./fulfilment";
 
 const {
   paymentRepository,
@@ -13,10 +14,15 @@ const {
 // Daraja Config
 // ─────────────────────────────────────────
 
-const DARAJA_BASE_URL =
-  Bun.env.DARAJA_ENV === "production"
-    ? "https://api.safaricom.co.ke"
-    : "https://sandbox.safaricom.co.ke";
+const IS_DARAJA_PRODUCTION = Bun.env.DARAJA_ENV === "production";
+
+const DARAJA_BASE_URL = IS_DARAJA_PRODUCTION
+  ? "https://api.safaricom.co.ke"
+  : "https://sandbox.safaricom.co.ke";
+
+// Outside production every STK prompt is for KES 1, whatever the order total.
+// The order itself keeps its real total and is marked paid on success.
+const SANDBOX_STK_AMOUNT = 1;
 
 const DARAJA_CONSUMER_KEY = Bun.env.DARAJA_CONSUMER_KEY!;
 const DARAJA_CONSUMER_SECRET = Bun.env.DARAJA_CONSUMER_SECRET!;
@@ -28,18 +34,15 @@ const DARAJA_CALLBACK_URL = Bun.env.DARAJA_CALLBACK_URL!;
 // Helpers
 // ─────────────────────────────────────────
 
-// Fetches a Daraja OAuth access token and caches it against the payment record.
-async function getDarajaAccessToken(orderId: string): Promise<string> {
-  // Check if a valid cached token exists for this order.
-  const payment = await paymentRepository.findPaymentByOrderId(orderId);
+// Daraja tokens are app-wide (not per order) and last ~1 hour, so one
+// in-memory token serves every payment until shortly before it expires.
+// (payments.access_token is a uuid column and can't hold these tokens.)
+let cachedToken: { value: string; expiresAt: number } | null = null;
 
-  if (
-    payment !== "payment_not_found" &&
-    payment.accessToken &&
-    payment.expiresAt &&
-    payment.expiresAt > new Date()
-  ) {
-    return payment.accessToken;
+// Fetches a Daraja OAuth access token, reusing the cached one while valid.
+async function getDarajaAccessToken(): Promise<string> {
+  if (cachedToken && cachedToken.expiresAt > Date.now()) {
+    return cachedToken.value;
   }
 
   const credentials = Buffer.from(
@@ -63,20 +66,19 @@ async function getDarajaAccessToken(orderId: string): Promise<string> {
     expires_in: string;
   };
 
-  // Cache the token against the payment record — expires in ~1 hour.
-  const expiresAt = new Date(Date.now() + parseInt(data.expires_in) * 1000);
-  await paymentRepository.updateAccessToken(
-    orderId,
-    data.access_token,
-    expiresAt,
-  );
+  // Refresh a minute early so a token never expires mid-request.
+  cachedToken = {
+    value: data.access_token,
+    expiresAt: Date.now() + (parseInt(data.expires_in) - 60) * 1000,
+  };
 
   return data.access_token;
 }
 
 // Generates the base64 encoded password for STK push.
 function generateStkPassword(): { password: string; timestamp: string } {
-  const timestamp = new Date()
+  // Daraja expects YYYYMMDDHHmmss in Kenyan time (EAT, UTC+3, no DST).
+  const timestamp = new Date(Date.now() + 3 * 60 * 60 * 1000)
     .toISOString()
     .replace(/[^0-9]/g, "")
     .slice(0, 14);
@@ -124,13 +126,14 @@ export async function initiatePayment(
   }
 
   try {
-    const accessToken = await getDarajaAccessToken(orderId);
+    const accessToken = await getDarajaAccessToken();
     const { password, timestamp } = generateStkPassword();
 
-    // Format phone to Safaricom's required format e.g. 0712345678 → 254712345678.
-    const formattedPhone = phone.startsWith("0")
-      ? `254${phone.slice(1)}`
-      : phone;
+    // Safaricom wants 2547XXXXXXXX: accept +254…, 254… or 07… input.
+    const digits = phone.replace(/\D/g, "");
+    const formattedPhone = digits.startsWith("0")
+      ? `254${digits.slice(1)}`
+      : digits;
 
     const res = await fetch(
       `${DARAJA_BASE_URL}/mpesa/stkpush/v1/processrequest`,
@@ -145,7 +148,10 @@ export async function initiatePayment(
           Password: password,
           Timestamp: timestamp,
           TransactionType: "CustomerPayBillOnline",
-          Amount: Math.ceil(parseFloat(order.totalAmount)), // Daraja requires integer amounts
+          // Daraja requires integer amounts.
+          Amount: IS_DARAJA_PRODUCTION
+            ? Math.ceil(parseFloat(order.totalAmount))
+            : SANDBOX_STK_AMOUNT,
           PartyA: formattedPhone,
           PartyB: DARAJA_SHORTCODE,
           PhoneNumber: formattedPhone,
@@ -195,10 +201,30 @@ export async function handleDarajaCallback(
   // captured even if subsequent steps throw.
   const body = rawCallback?.Body as Record<string, unknown>;
   const stkCallback = body?.stkCallback as Record<string, unknown>;
-  const orderId = stkCallback?.MerchantRequestID as string;
+  const checkoutRequestId = stkCallback?.CheckoutRequestID as string;
   const resultCode = stkCallback?.ResultCode as number;
 
+  // MerchantRequestID/CheckoutRequestID are Safaricom's ids, not ours — map
+  // back to the order via the STK response saved when the push was sent.
+  const payment = checkoutRequestId
+    ? await paymentRepository.findPaymentByCheckoutRequestId(checkoutRequestId)
+    : "payment_not_found";
+  const orderId =
+    payment === "payment_not_found"
+      ? (checkoutRequestId ?? "unknown")
+      : payment.orderId;
+
   await paymentLogRepository.insertPaymentLog(orderId, rawCallback);
+
+  if (payment === "payment_not_found") {
+    await errorLogRepository.insertErrorLog(
+      "/payments/callback",
+      "No payment matches callback CheckoutRequestID",
+      rawCallback,
+      { checkoutRequestId },
+    );
+    return;
+  }
 
   try {
     if (resultCode === 0) {
@@ -214,6 +240,9 @@ export async function handleDarajaCallback(
       // Advance all order items to confirmed.
       await orderItemRepository.updateStatusByOrderId(orderId, "confirmed");
 
+      // Each seller hears once what to drop off at the hub.
+      await notifySellersOfPaidOrder(orderId);
+
       // Notify the buyer of successful payment.
       const order = await orderRepository.findOrderById(orderId);
       if (order !== "order_not_found") {
@@ -221,7 +250,7 @@ export async function handleDarajaCallback(
           userId: order.buyerId,
           type: "payment_success",
           title: "Payment Successful",
-          body: `Your payment for order #${orderId.slice(0, 8)} was successful.`,
+          body: `Payment received for order ${orderRef(orderId)}. We're preparing it and will let you know when it ships.`,
           channel: "push",
         });
       }
@@ -238,7 +267,7 @@ export async function handleDarajaCallback(
           userId: order.buyerId,
           type: "payment_failed",
           title: "Payment Failed",
-          body: `Your payment for order #${orderId.slice(0, 8)} failed. Please try again.`,
+          body: `Your payment for order ${orderRef(orderId)} failed. Please try again.`,
           channel: "push",
         });
       }

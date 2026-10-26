@@ -1,4 +1,5 @@
 import Elysia, { t } from "elysia";
+import { CONTACT_INFO_MESSAGE } from "../../lib/contact-filter";
 import { sellerPlugin } from "../../middleware/auth.middleware";
 import { createProduct } from "../../services/product.service";
 
@@ -11,6 +12,10 @@ export const CreateProduct = new Elysia().use(sellerPlugin).post(
     if (result === "seller_not_found") {
       set.status = 404;
       return { success: false, message: "Seller profile not found." };
+    }
+    if (result === "contact_info") {
+      set.status = 400;
+      return { success: false, message: CONTACT_INFO_MESSAGE };
     }
     if (result === "category_not_found") {
       set.status = 404;

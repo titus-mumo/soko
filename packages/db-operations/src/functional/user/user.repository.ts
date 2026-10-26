@@ -1,6 +1,8 @@
 import { db } from "../../db";
+import { pageNewestFirst, type Page, type PageParams } from "../../pagination";
 import { usersTable } from "../../schema";
-import { eq, or, isNull } from "drizzle-orm";
+import { and, eq, inArray, or, isNull, sql } from "drizzle-orm";
+import { phoneVariants } from "../../phone";
 
 export type User = typeof usersTable.$inferSelect;
 export type NewUser = typeof usersTable.$inferInsert;
@@ -44,10 +46,14 @@ export class UserRepository {
   }
 
   async findUserByPhone(phone: string): Promise<FindUserResponse> {
+    // Match any format the number may be stored in; an active account wins
+    // over a deleted one with the same number.
     const [res] = await db
       .select()
       .from(usersTable)
-      .where(eq(usersTable.phone, phone));
+      .where(inArray(usersTable.phone, phoneVariants(phone)))
+      .orderBy(sql`${usersTable.deletedAt} is not null`)
+      .limit(1);
 
     if (!res) return "user_not_found";
 
@@ -57,6 +63,7 @@ export class UserRepository {
 
   // Used for email+password and phone+password login.
   // Pass null for pass if the user signed up via OAuth or OTP.
+  // Deleted accounts can't sign in.
   async findUserByEmailOrPhone(
     subject: string,
     pass: string | null,
@@ -64,7 +71,15 @@ export class UserRepository {
     const [res] = await db
       .select()
       .from(usersTable)
-      .where(or(eq(usersTable.email, subject), eq(usersTable.phone, subject)));
+      .where(
+        and(
+          or(
+            eq(usersTable.email, subject),
+            inArray(usersTable.phone, phoneVariants(subject)),
+          ),
+          isNull(usersTable.deletedAt),
+        ),
+      );
 
     if (!res) return "user_not_found";
 
@@ -105,12 +120,28 @@ export class UserRepository {
     const [res] = await db
       .select()
       .from(usersTable)
-      .where(eq(usersTable.id, id));
+      .where(and(eq(usersTable.id, id), isNull(usersTable.deletedAt)));
 
     if (!res) return null;
 
     const { passwordHash: _passwordHash, ...publicUser } = res;
     return publicUser as PublicUser;
+  }
+
+  // Paged, newest first, without password hashes.
+  async pageUsers(params?: PageParams): Promise<Page<PublicUser>> {
+    const page = await pageNewestFirst<User>(
+      usersTable,
+      isNull(usersTable.deletedAt),
+      params,
+    );
+    return {
+      ...page,
+      items: page.items.map(
+        ({ passwordHash: _passwordHash, ...publicUser }) =>
+          publicUser as PublicUser,
+      ),
+    };
   }
 
   async findAllUsers(): Promise<PublicUser[]> {
@@ -129,9 +160,14 @@ export class UserRepository {
     id: string,
     data: Partial<Omit<NewUser, "id" | "createdAt">>,
   ): Promise<PublicUser | null> {
+    // Callers pass a plain password in passwordHash; hash it like insertUser.
+    const values = data.passwordHash
+      ? { ...data, passwordHash: Bun.password.hashSync(data.passwordHash) }
+      : data;
+
     const [res] = await db
       .update(usersTable)
-      .set({ ...data, updatedAt: new Date() })
+      .set({ ...values, updatedAt: new Date() })
       .where(eq(usersTable.id, id))
       .returning();
 

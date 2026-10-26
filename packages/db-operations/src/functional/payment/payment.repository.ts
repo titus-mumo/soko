@@ -1,6 +1,6 @@
 import { db } from "src/db";
 import { paymentsTable } from "src/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, sql } from "drizzle-orm";
 
 import { type PaymentStatus } from "../cart/order.repository";
 
@@ -34,6 +34,26 @@ export class PaymentRepository {
       .where(
         and(
           eq(paymentsTable.orderId, orderId),
+          isNull(paymentsTable.deletedAt),
+        ),
+      );
+
+    if (!res) return "payment_not_found";
+
+    return res;
+  }
+
+  // Matches a Daraja callback to its payment. The STK push response stored
+  // in metadata carries the CheckoutRequestID that the callback echoes back.
+  async findPaymentByCheckoutRequestId(
+    checkoutRequestId: string,
+  ): Promise<FindPaymentResponse> {
+    const [res] = await db
+      .select()
+      .from(paymentsTable)
+      .where(
+        and(
+          sql`${paymentsTable.metadata}->>'CheckoutRequestID' = ${checkoutRequestId}`,
           isNull(paymentsTable.deletedAt),
         ),
       );

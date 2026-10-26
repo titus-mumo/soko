@@ -1,6 +1,7 @@
 import { db } from "src/db";
+import { pageNewestFirst, type Page, type PageParams } from "../../pagination";
 import { ordersTable } from "src/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, sql } from "drizzle-orm";
 
 export type Order = typeof ordersTable.$inferSelect;
 export type NewOrder = typeof ordersTable.$inferInsert;
@@ -9,6 +10,8 @@ export type OrderStatus =
   | "pending"
   | "confirmed"
   | "processing"
+  | "dropped_off"
+  | "at_hub"
   | "shipped"
   | "delivered"
   | "cancelled"
@@ -19,6 +22,64 @@ export type PaymentStatus = "pending" | "paid" | "failed" | "refunded";
 export type FindOrderResponse = Order | "order_not_found";
 
 export class OrderRepository {
+  /** A buyer's order count, and how many are still in progress. */
+  async buyerStats(
+    buyerId: string,
+  ): Promise<{ total: number; active: number }> {
+    const [row] = await db
+      .select({
+        total: sql<number>`count(*)::int`,
+        active: sql<number>`count(*) filter (where ${ordersTable.status} in ('pending','confirmed','processing','shipped'))::int`,
+      })
+      .from(ordersTable)
+      .where(
+        and(eq(ordersTable.buyerId, buyerId), isNull(ordersTable.deletedAt)),
+      );
+    return { total: Number(row?.total ?? 0), active: Number(row?.active ?? 0) };
+  }
+
+  // Paged, newest first: a buyer's history, or the admin views by status.
+  async pageOrdersByBuyerId(
+    buyerId: string,
+    params?: PageParams,
+    status?: OrderStatus,
+  ): Promise<Page<Order>> {
+    return pageNewestFirst<Order>(
+      ordersTable,
+      and(
+        eq(ordersTable.buyerId, buyerId),
+        isNull(ordersTable.deletedAt),
+        status ? eq(ordersTable.status, status) : undefined,
+      ),
+      params,
+    );
+  }
+
+  async pageOrdersByStatus(
+    status: OrderStatus,
+    params?: PageParams,
+  ): Promise<Page<Order>> {
+    return pageNewestFirst<Order>(
+      ordersTable,
+      and(eq(ordersTable.status, status), isNull(ordersTable.deletedAt)),
+      params,
+    );
+  }
+
+  async pageOrdersByPaymentStatus(
+    paymentStatus: PaymentStatus,
+    params?: PageParams,
+  ): Promise<Page<Order>> {
+    return pageNewestFirst<Order>(
+      ordersTable,
+      and(
+        eq(ordersTable.paymentStatus, paymentStatus),
+        isNull(ordersTable.deletedAt),
+      ),
+      params,
+    );
+  }
+
   async insertOrder(order: NewOrder): Promise<Order | null> {
     const [res] = await db.insert(ordersTable).values(order).returning();
 

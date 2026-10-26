@@ -44,10 +44,16 @@ export const productStatusEnum = pgEnum("product_status", [
   "out_of_stock",
 ]);
 
+// Orders and order items share this. Items move through the hub steps:
+// confirmed (paid) → processing (seller packing) → dropped_off (seller handed
+// it in at the Soko hub) → at_hub (hub received it) → shipped → delivered.
+// Orders skip the two hub-only steps.
 export const orderStatusEnum = pgEnum("order_status", [
   "pending",
   "confirmed",
   "processing",
+  "dropped_off",
+  "at_hub",
   "shipped",
   "delivered",
   "cancelled",
@@ -273,11 +279,14 @@ export const deliveryZonesTable = pgTable("delivery_zones", {
   baseFee: decimal("base_fee", { precision: 10, scale: 2 }).notNull(),
 });
 
+// One shipment per order: items are consolidated at the Soko hub and sent
+// to the buyer together.
 export const shipmentsTable = pgTable("shipments", {
   ...defaultFields,
-  orderItemId: uuid("order_item_id")
+  orderId: uuid("order_id")
     .notNull()
-    .references(() => orderItemsTable.id, { onDelete: "cascade" }),
+    .unique()
+    .references(() => ordersTable.id, { onDelete: "cascade" }),
   courier: courierEnum("courier").notNull().default("self"),
   trackingNumber: varchar("tracking_number"),
   status: shipmentStatusEnum("status").notNull().default("awaiting_pickup"),

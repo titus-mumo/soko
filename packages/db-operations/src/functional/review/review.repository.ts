@@ -1,4 +1,5 @@
 import { db } from "src/db";
+import { pageNewestFirst, type Page, type PageParams } from "../../pagination";
 import { reviewsTable } from "src/schema";
 import { eq, and, isNull, avg } from "drizzle-orm";
 
@@ -8,6 +9,23 @@ export type NewReview = typeof reviewsTable.$inferInsert;
 export type FindReviewResponse = Review | "review_not_found";
 
 export class ReviewRepository {
+  // Paged, newest first.
+  async pageReviews(
+    by: { productId?: string; sellerId?: string; reviewerId?: string },
+    params?: PageParams,
+  ): Promise<Page<Review>> {
+    return pageNewestFirst<Review>(
+      reviewsTable,
+      and(
+        by.productId ? eq(reviewsTable.productId, by.productId) : undefined,
+        by.sellerId ? eq(reviewsTable.sellerId, by.sellerId) : undefined,
+        by.reviewerId ? eq(reviewsTable.reviewerId, by.reviewerId) : undefined,
+        isNull(reviewsTable.deletedAt),
+      ),
+      params,
+    );
+  }
+
   // isVerifiedPurchase defaults to true since reviews are only
   // created post-delivery via an order item reference.
   async insertReview(review: NewReview): Promise<Review | null> {

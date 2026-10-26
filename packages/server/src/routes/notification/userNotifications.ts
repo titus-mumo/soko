@@ -1,4 +1,5 @@
 import Elysia from "elysia";
+import { pageParams, paged } from "../../lib/paging";
 import { authPlugin } from "../../middleware/auth.middleware";
 import {
   getUserNotifications,
@@ -10,21 +11,26 @@ import {
   deleteNotification,
   clearAllNotifications,
 } from "../../services/notification.service";
+import { notificationView } from "../../lib/views";
 
 export const GetUserNotifications = new Elysia()
   .use(authPlugin)
   .get("/me", async (ctx) => {
-    const { userId } = ctx as any;
-    const result = await getUserNotifications(userId);
-    return { success: true, data: result };
+    const { userId, query } = ctx as any;
+    return paged(
+      await getUserNotifications(userId, pageParams(query)),
+      notificationView,
+    );
   });
 
 export const GetUnreadNotifications = new Elysia()
   .use(authPlugin)
   .get("/me/unread", async (ctx) => {
-    const { userId } = ctx as any;
-    const result = await getUnreadNotifications(userId);
-    return { success: true, data: result };
+    const { userId, query } = ctx as any;
+    return paged(
+      await getUnreadNotifications(userId, pageParams(query)),
+      notificationView,
+    );
   });
 
 export const GetUnreadCount = new Elysia()
@@ -40,7 +46,7 @@ export const GetNotificationsByChannel = new Elysia()
   .get("/me/channel/:channel", async (ctx) => {
     const { userId, params } = ctx as any;
     const result = await getNotificationsByChannel(userId, params.channel);
-    return { success: true, data: result };
+    return { success: true, data: result.map(notificationView) };
   });
 
 export const MarkNotificationAsRead = new Elysia()

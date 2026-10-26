@@ -1,0 +1,5 @@
+[test]
+# Mocks Twilio, Google and Daraja before any server code loads.
+preload = ["./test/setup.ts"]
+# Requests go through the real database, so allow more than the 5s default.
+timeout = 30000

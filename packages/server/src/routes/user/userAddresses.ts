@@ -7,13 +7,14 @@ import {
   setDefaultAddress,
   removeAddress,
 } from "../../services/user.service";
+import { selfAddress } from "../../lib/views";
 
 export const GetUserAddresses = new Elysia()
   .use(authPlugin)
   .get("/me/addresses", async (ctx) => {
     const { userId } = ctx as any;
     const result = await getUserAddresses(userId);
-    return { success: true, data: result };
+    return { success: true, data: result.map(selfAddress) };
   });
 
 export const AddAddress = new Elysia().use(authPlugin).post(
@@ -28,7 +29,7 @@ export const AddAddress = new Elysia().use(authPlugin).post(
     }
 
     set.status = 201;
-    return { success: true, data: result };
+    return { success: true, data: selfAddress(result) };
   },
   {
     body: t.Object({
@@ -54,7 +55,7 @@ export const UpdateAddress = new Elysia().use(authPlugin).patch(
       return { success: false, message: "Address not found." };
     }
 
-    return { success: true, data: result };
+    return { success: true, data: selfAddress(result) };
   },
   {
     body: t.Object({
@@ -80,7 +81,7 @@ export const SetDefaultAddress = new Elysia()
       return { success: false, message: "Address not found." };
     }
 
-    return { success: true, data: result };
+    return { success: true, data: selfAddress(result) };
   });
 
 export const RemoveAddress = new Elysia()

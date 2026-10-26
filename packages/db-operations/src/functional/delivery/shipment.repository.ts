@@ -35,17 +35,14 @@ export class ShipmentRepository {
     return res;
   }
 
-  // Returns the shipment for a specific order item.
-  // Use this to show shipment status on the order detail view.
-  async findShipmentByOrderItemId(
-    orderItemId: string,
-  ): Promise<FindShipmentResponse> {
+  // Returns the order's shipment — one per order, sent from the hub.
+  async findShipmentByOrderId(orderId: string): Promise<FindShipmentResponse> {
     const [res] = await db
       .select()
       .from(shipmentsTable)
       .where(
         and(
-          eq(shipmentsTable.orderItemId, orderItemId),
+          eq(shipmentsTable.orderId, orderId),
           isNull(shipmentsTable.deletedAt),
         ),
       );
@@ -115,7 +112,7 @@ export class ShipmentRepository {
   }
 
   // Attaches a tracking number and courier to a shipment.
-  // Use this when the seller books a courier and receives a tracking reference.
+  // Use this when the hub books a courier and receives a tracking reference.
   async assignTracking(
     id: string,
     courier: Courier,
@@ -133,7 +130,7 @@ export class ShipmentRepository {
   }
 
   // Soft delete only — shipments are part of the fulfilment audit trail
-  // and must be retained alongside their parent order items.
+  // and must be retained alongside their parent order.
   async softDeleteShipment(id: string): Promise<boolean> {
     const [res] = await db
       .update(shipmentsTable)

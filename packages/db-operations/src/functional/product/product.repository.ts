@@ -1,6 +1,7 @@
 import { db } from "src/db";
+import { pageNewestFirst, type Page, type PageParams } from "../../pagination";
 import { productsTable } from "src/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, sql } from "drizzle-orm";
 
 export type Product = typeof productsTable.$inferSelect;
 export type NewProduct = typeof productsTable.$inferInsert;
@@ -11,6 +12,41 @@ export type ProductStatus = "draft" | "active" | "suspended" | "out_of_stock";
 export type FindProductResponse = Product | "product_not_found";
 
 export class ProductRepository {
+  /** How many of a seller's listings are at each status. */
+  async countBySellerAndStatus(
+    sellerId: string,
+  ): Promise<Partial<Record<ProductStatus, number>>> {
+    const rows = await db
+      .select({
+        status: productsTable.status,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(productsTable)
+      .where(
+        and(
+          eq(productsTable.sellerId, sellerId),
+          isNull(productsTable.deletedAt),
+        ),
+      )
+      .groupBy(productsTable.status);
+    return Object.fromEntries(rows.map((r) => [r.status, Number(r.count)]));
+  }
+
+  // Paged, newest first: all of a seller's own listings (any status).
+  async pageProductsBySellerId(
+    sellerId: string,
+    params?: PageParams,
+  ): Promise<Page<Product>> {
+    return pageNewestFirst<Product>(
+      productsTable,
+      and(
+        eq(productsTable.sellerId, sellerId),
+        isNull(productsTable.deletedAt),
+      ),
+      params,
+    );
+  }
+
   async insertProduct(product: NewProduct): Promise<Product | null> {
     const [res] = await db.insert(productsTable).values(product).returning();
 

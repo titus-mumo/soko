@@ -1,4 +1,5 @@
 import Elysia from "elysia";
+import { pageParams, paged } from "../../lib/paging";
 import {
   getProductReviews,
   getSellerReviews,
@@ -7,14 +8,17 @@ import {
   getBuyerReviews,
 } from "../../services/review.service";
 import { authPlugin } from "../../middleware/auth.middleware";
+import { ownReview, publicReview } from "../../lib/views";
 
 // Public
 export const GetProductReviews = new Elysia().get(
   "/product/:productId",
   async (ctx) => {
-    const { params } = ctx as any;
-    const result = await getProductReviews(params.productId);
-    return { success: true, data: result };
+    const { params, query } = ctx as any;
+    return paged(
+      await getProductReviews(params.productId, pageParams(query)),
+      publicReview,
+    );
   },
 );
 
@@ -30,9 +34,11 @@ export const GetAverageProductRating = new Elysia().get(
 export const GetSellerReviews = new Elysia().get(
   "/seller/:sellerId",
   async (ctx) => {
-    const { params } = ctx as any;
-    const result = await getSellerReviews(params.sellerId);
-    return { success: true, data: result };
+    const { params, query } = ctx as any;
+    return paged(
+      await getSellerReviews(params.sellerId, pageParams(query)),
+      publicReview,
+    );
   },
 );
 
@@ -49,7 +55,6 @@ export const GetAverageSellerRating = new Elysia().get(
 export const GetBuyerReviews = new Elysia()
   .use(authPlugin)
   .get("/me", async (ctx) => {
-    const { userId } = ctx as any;
-    const result = await getBuyerReviews(userId);
-    return { success: true, data: result };
+    const { userId, query } = ctx as any;
+    return paged(await getBuyerReviews(userId, pageParams(query)), ownReview);
   });

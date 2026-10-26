@@ -1,4 +1,5 @@
 import Elysia, { t } from "elysia";
+import { pageParams, paged } from "../../lib/paging";
 import { adminPlugin } from "../../middleware/auth.middleware";
 import {
   getPlatformPromotions,
@@ -7,9 +8,9 @@ import {
 
 export const GetPlatformPromotions = new Elysia()
   .use(adminPlugin)
-  .get("/admin", async () => {
-    const result = await getPlatformPromotions();
-    return { success: true, data: result };
+  .get("/admin", async (ctx) => {
+    const { query } = ctx as any;
+    return paged(await getPlatformPromotions(pageParams(query)));
   });
 
 export const CreatePlatformPromotion = new Elysia().use(adminPlugin).post(

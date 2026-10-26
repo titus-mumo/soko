@@ -1,4 +1,5 @@
 import { getRepositories } from "../lib/repositories";
+import type { PageParams } from "db-operations";
 import type { NewPromotion } from "db-operations";
 
 const {
@@ -78,6 +79,21 @@ async function validatePromotion(
 // Seller Promotions
 // ─────────────────────────────────────────
 
+// Request bodies carry expiresAt as an ISO string; the column needs a Date.
+function toDate(value: Date | string | null | undefined) {
+  if (value === undefined || value === null) return value;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) throw new Error("Invalid expiresAt date");
+  return date;
+}
+
+// A seller may only touch their own promotions. Someone else's (or a
+// platform-wide one) reads as not found, so ids can't be probed.
+async function ownsPromotion(sellerId: string, promotionId: string) {
+  const promotion = await promotionRepository.findPromotionById(promotionId);
+  return promotion !== "promotion_not_found" && promotion.sellerId === sellerId;
+}
+
 export async function createPromotion(
   userId: string,
   data: Pick<
@@ -100,15 +116,16 @@ export async function createPromotion(
   return await promotionRepository.insertPromotion({
     sellerId: seller.id,
     ...data,
+    expiresAt: toDate(data.expiresAt),
   });
 }
 
-export async function getSellerPromotions(userId: string) {
+export async function getSellerPromotions(userId: string, page?: PageParams) {
   const seller =
     await sellerProfileRepository.findSellerProfileByUserId(userId);
   if (seller === "seller_not_found") return "seller_not_found" as const;
 
-  return await promotionRepository.findPromotionsBySellerId(seller.id);
+  return await promotionRepository.pagePromotions(seller.id, page);
 }
 
 export async function updatePromotion(
@@ -136,6 +153,10 @@ export async function updatePromotion(
     await sellerProfileRepository.findSellerProfileByUserId(userId);
   if (seller === "seller_not_found") return "seller_not_found";
 
+  if (!(await ownsPromotion(seller.id, promotionId))) {
+    return "promotion_not_found";
+  }
+
   // Ensure the new code isn't already taken by another promotion.
   if (data.code) {
     const existing = await promotionRepository.findPromotionByCode(data.code);
@@ -147,7 +168,10 @@ export async function updatePromotion(
     }
   }
 
-  return await promotionRepository.updatePromotion(promotionId, data);
+  return await promotionRepository.updatePromotion(promotionId, {
+    ...data,
+    ...(data.expiresAt !== undefined && { expiresAt: toDate(data.expiresAt) }),
+  });
 }
 
 export async function activatePromotion(
@@ -157,6 +181,9 @@ export async function activatePromotion(
   const seller =
     await sellerProfileRepository.findSellerProfileByUserId(userId);
   if (seller === "seller_not_found") return "seller_not_found";
+  if (!(await ownsPromotion(seller.id, promotionId))) {
+    return "promotion_not_found";
+  }
 
   const result = await promotionRepository.activatePromotion(promotionId);
   if (result === "promotion_not_found") return "promotion_not_found";
@@ -173,6 +200,9 @@ export async function deactivatePromotion(
   const seller =
     await sellerProfileRepository.findSellerProfileByUserId(userId);
   if (seller === "seller_not_found") return "seller_not_found";
+  if (!(await ownsPromotion(seller.id, promotionId))) {
+    return "promotion_not_found";
+  }
 
   const result = await promotionRepository.deactivatePromotion(promotionId);
   if (result === "promotion_not_found") return "promotion_not_found";
@@ -187,6 +217,9 @@ export async function deletePromotion(
   const seller =
     await sellerProfileRepository.findSellerProfileByUserId(userId);
   if (seller === "seller_not_found") return "seller_not_found";
+  if (!(await ownsPromotion(seller.id, promotionId))) {
+    return "promotion_not_found";
+  }
 
   const result = await promotionRepository.softDeletePromotion(promotionId);
   if (!result) return "promotion_not_found";
@@ -259,11 +292,12 @@ export async function createPlatformPromotion(
   return await promotionRepository.insertPromotion({
     sellerId: null,
     ...data,
+    expiresAt: toDate(data.expiresAt),
   });
 }
 
-export async function getPlatformPromotions() {
-  return await promotionRepository.findPlatformPromotions();
+export async function getPlatformPromotions(page?: PageParams) {
+  return await promotionRepository.pagePromotions(null, page);
 }
 
 // Previews the discount without incrementing usesCount.

@@ -1,4 +1,5 @@
 import { getRepositories } from "../lib/repositories";
+import type { PageParams } from "db-operations";
 
 const { disputeRepository, orderRepository, notificationRepository } =
   getRepositories();
@@ -58,8 +59,8 @@ export async function raiseDispute(
   return "dispute_raised";
 }
 
-export async function getBuyerDisputes(userId: string) {
-  return await disputeRepository.findDisputesByRaisedBy(userId);
+export async function getBuyerDisputes(userId: string, page?: PageParams) {
+  return await disputeRepository.pageDisputes({ raisedBy: userId }, page);
 }
 
 export async function getDisputesByOrder(
@@ -82,8 +83,9 @@ export async function getDisputesByOrder(
 
 export async function getAllDisputesByStatus(
   status: "open" | "under_review" | "resolved" | "closed",
+  page?: PageParams,
 ) {
-  return await disputeRepository.findDisputesByStatus(status);
+  return await disputeRepository.pageDisputes({ status }, page);
 }
 
 // Moves a dispute from open to under_review to signal admin is investigating.

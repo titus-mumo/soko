@@ -26,9 +26,12 @@ export async function createSellerProfile(
   const user = await userRepository.findUserById(userId);
   if (!user) return "user_not_found";
 
-  // Prevent duplicate seller profiles for the same user.
-  const existing =
-    await sellerProfileRepository.findSellerProfileByUserId(userId);
+  // Prevent duplicate seller profiles for the same user — including a closed
+  // store, since user_id is unique.
+  const existing = await sellerProfileRepository.findSellerProfileByUserId(
+    userId,
+    { includeDeleted: true },
+  );
   if (existing !== "seller_not_found") return "seller_profile_exists";
 
   // Ensure the store slug is unique across all sellers.
@@ -67,10 +70,28 @@ export async function getSellerProfile(userId: string) {
   return profile;
 }
 
-export async function getSellerProfileBySlug(slug: string) {
-  const profile = await sellerProfileRepository.findSellerProfileBySlug(slug);
+// Public views of a store must not expose verification documents (ID / KRA
+// uploads) or internal fields.
+// Stores are anonymous to buyers: they deal with Soko, not with a named
+// shop they could contact or visit elsewhere. Only trust signals are public.
+function toPublicSeller(
+  profile: Exclude<
+    Awaited<ReturnType<typeof sellerProfileRepository.findSellerProfileById>>,
+    "seller_not_found"
+  >,
+) {
+  return {
+    id: profile.id,
+    isVerified: profile.isVerified,
+    rating: profile.rating,
+    totalSales: profile.totalSales,
+  };
+}
+
+export async function getPublicSellerById(sellerId: string) {
+  const profile = await sellerProfileRepository.findSellerProfileById(sellerId);
   if (profile === "seller_not_found") return "seller_not_found" as const;
-  return profile;
+  return toPublicSeller(profile);
 }
 
 export async function updateSellerProfile(

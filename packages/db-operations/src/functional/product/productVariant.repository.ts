@@ -1,6 +1,6 @@
 import { db } from "src/db";
 import { productVariantsTable } from "src/schema";
-import { eq, and, isNull, sql } from "drizzle-orm";
+import { eq, and, inArray, isNull, sql } from "drizzle-orm";
 
 export type ProductVariant = typeof productVariantsTable.$inferSelect;
 export type NewProductVariant = typeof productVariantsTable.$inferInsert;
@@ -69,6 +69,22 @@ export class ProductVariantRepository {
       .where(
         and(
           eq(productVariantsTable.productId, productId),
+          isNull(productVariantsTable.deletedAt),
+        ),
+      );
+  }
+
+  // Active variants for many products in one query (for a page of listings).
+  async findVariantsByProductIds(
+    productIds: string[],
+  ): Promise<ProductVariant[]> {
+    if (productIds.length === 0) return [];
+    return await db
+      .select()
+      .from(productVariantsTable)
+      .where(
+        and(
+          inArray(productVariantsTable.productId, productIds),
           isNull(productVariantsTable.deletedAt),
         ),
       );
