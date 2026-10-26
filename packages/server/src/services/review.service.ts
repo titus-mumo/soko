@@ -112,21 +112,12 @@ export async function getProductReviews(productId: string, page?: PageParams) {
   return await reviewRepository.pageReviews({ productId }, page);
 }
 
-export async function getSellerReviews(sellerId: string, page?: PageParams) {
-  return await reviewRepository.pageReviews({ sellerId }, page);
-}
-
 export async function getBuyerReviews(userId: string, page?: PageParams) {
   return await reviewRepository.pageReviews({ reviewerId: userId }, page);
 }
 
 export async function getAverageProductRating(productId: string) {
   const avg = await reviewRepository.getAverageRatingForProduct(productId);
-  return avg ? parseFloat(avg).toFixed(2) : "0.00";
-}
-
-export async function getAverageSellerRating(sellerId: string) {
-  const avg = await reviewRepository.getAverageRatingForSeller(sellerId);
   return avg ? parseFloat(avg).toFixed(2) : "0.00";
 }
 

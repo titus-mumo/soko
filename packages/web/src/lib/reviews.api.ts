@@ -18,13 +18,6 @@ export async function getAverageProductRating(
   return Number(data.data.averageRating ?? 0);
 }
 
-export async function getSellerReviews(sellerId: string): Promise<Review[]> {
-  const { data } = await api.get<ApiResponse<Review[]>>(
-    `/reviews/seller/${sellerId}`,
-  );
-  return data.data;
-}
-
 export function getMyReviews(page?: PageRequest): Promise<Paged<Review>> {
   return getPage<Review>("/reviews/me", page);
 }

@@ -4,7 +4,6 @@ import {
   GetCatalogueStats,
   GetProductBySlug,
   GetProductsByCategory,
-  GetProductsBySeller,
   GetProductVariants,
   GetProductImages,
   GetProductTags,
@@ -39,7 +38,6 @@ export const productRoutes = new Elysia().group("/products", (app) =>
     .use(GetCatalogueStats)
     .use(GetProductBySlug)
     .use(GetProductsByCategory)
-    .use(GetProductsBySeller)
     .use(GetProductVariants)
     .use(GetProductImages)
     .use(GetProductTags)

@@ -1,5 +1,4 @@
 const globals = require("globals");
-const pluginJs = require("@eslint/js");
 const tseslint = require("typescript-eslint");
 const tsParser = require("@typescript-eslint/parser");
 
@@ -30,8 +29,4 @@ const rawConfig = [
   },
 ];
 
-export default [
-  ...rawConfig,
-  ...tseslint.configs.recommended,
-  pluginJs.configs.recommended,
-];
+export default [...rawConfig, ...tseslint.configs.recommended];

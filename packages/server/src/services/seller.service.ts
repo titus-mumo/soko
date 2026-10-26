@@ -70,30 +70,6 @@ export async function getSellerProfile(userId: string) {
   return profile;
 }
 
-// Public views of a store must not expose verification documents (ID / KRA
-// uploads) or internal fields.
-// Stores are anonymous to buyers: they deal with Soko, not with a named
-// shop they could contact or visit elsewhere. Only trust signals are public.
-function toPublicSeller(
-  profile: Exclude<
-    Awaited<ReturnType<typeof sellerProfileRepository.findSellerProfileById>>,
-    "seller_not_found"
-  >,
-) {
-  return {
-    id: profile.id,
-    isVerified: profile.isVerified,
-    rating: profile.rating,
-    totalSales: profile.totalSales,
-  };
-}
-
-export async function getPublicSellerById(sellerId: string) {
-  const profile = await sellerProfileRepository.findSellerProfileById(sellerId);
-  if (profile === "seller_not_found") return "seller_not_found" as const;
-  return toPublicSeller(profile);
-}
-
 export async function updateSellerProfile(
   userId: string,
   data: Partial<
