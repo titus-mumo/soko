@@ -4,7 +4,6 @@ import {
   browseCatalogue,
   getCatalogueStats,
   getPublicProductBySlug,
-  getActiveProductsBySeller,
   getProductsByCategory,
   getProductVariants,
   getProductImages,
@@ -86,17 +85,6 @@ export const GetProductsByCategory = new Elysia().get(
     const { params, query } = ctx as any;
     return paged(
       await getProductsByCategory(params.categoryId, pageParams(query)),
-    );
-  },
-);
-
-// Public — catalog reads need no login (crawlers, guests).
-export const GetProductsBySeller = new Elysia().get(
-  "/by-seller/:sellerId",
-  async (ctx) => {
-    const { params, query } = ctx as any;
-    return paged(
-      await getActiveProductsBySeller(params.sellerId, pageParams(query)),
     );
   },
 );

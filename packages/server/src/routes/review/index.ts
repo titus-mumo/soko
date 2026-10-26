@@ -2,8 +2,6 @@ import Elysia from "elysia";
 import {
   GetProductReviews,
   GetAverageProductRating,
-  GetSellerReviews,
-  GetAverageSellerRating,
   GetBuyerReviews,
 } from "./getReviews";
 import { CreateReview } from "./createReview";
@@ -15,8 +13,6 @@ export const reviewRoutes = new Elysia().group("/reviews", (app) =>
     // Public
     .use(GetProductReviews)
     .use(GetAverageProductRating)
-    .use(GetSellerReviews)
-    .use(GetAverageSellerRating)
     // Buyer
     .use(GetBuyerReviews)
     .use(CreateReview)

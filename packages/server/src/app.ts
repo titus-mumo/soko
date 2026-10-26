@@ -16,6 +16,7 @@ import { disputeRoutes } from "./routes/dispute";
 import { promotionRoutes } from "./routes/promotion";
 import { notificationRoutes } from "./routes/notification";
 import { scrub } from "./lib/views";
+import { rateLimit } from "./lib/rate-limit";
 
 const checkSoko = "soko server is running!";
 
@@ -25,9 +26,18 @@ const App = new Elysia()
       origin: Bun.env.FRONTEND_URL || "http://localhost:3000", // Allow all origins for dev; specify your frontend URL (e.g., 'http://localhost:3000') for production
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], // Allowed HTTP methods
       allowedHeaders: ["Content-Type", "Authorization"], // Allowed headers
+      // Lets the web app read when to retry after a 429.
+      exposeHeaders: [
+        "Retry-After",
+        "RateLimit-Limit",
+        "RateLimit-Remaining",
+        "RateLimit-Reset",
+      ],
       credentials: true, // Enable if your frontend sends cookies or auth headers
     }),
   ) // Add CORS middleware
+  // Before routing, so floods are turned away cheaply (lib/rate-limit.ts).
+  .use(rateLimit)
   // Log the request line only: response bodies carry tokens and personal data.
   .onAfterResponse(({ request, set }) => {
     if (Bun.env.NODE_ENV !== "test")

@@ -71,22 +71,16 @@ describe("POST /sellers/onboard", () => {
 });
 
 describe("public store lookups", () => {
-  test("GET /sellers/by-id/:id is anonymous: trust signals only", async () => {
-    const store = ok(await api("GET", `/sellers/by-id/${seller.sellerId}`));
-    expect(store.id).toBe(seller.sellerId);
-    expect(Object.keys(store).sort()).toEqual(
-      ["id", "isVerified", "rating", "totalSales"].sort(),
-    );
+  test("there are no lookups by store id (stores are anonymous)", async () => {
+    for (const path of [
+      `/sellers/by-id/${seller.sellerId}`,
+      `/products/by-seller/${seller.sellerId}`,
+    ])
+      expect((await api("GET", path)).status).toBe(404);
   });
 
   test("there's no public storefront by slug", async () => {
     expect((await api("GET", `/sellers/${seller.storeSlug}`)).status).toBe(404);
-  });
-
-  test("404 for unknown stores", async () => {
-    expect((await api("GET", `/sellers/by-id/${missingId()}`)).status).toBe(
-      404,
-    );
   });
 });
 
@@ -130,14 +124,14 @@ describe("seller profile", () => {
     );
     const me = ok(await api("GET", "/sellers/me", { token: seller.token }));
     expect(me.verificationDocs).toContain("https://example.com/kra.pdf");
-    const pub = ok(await api("GET", `/sellers/by-id/${seller.sellerId}`));
-    expect(pub.verificationDocs).toBeUndefined();
   });
 
   test("DELETE /sellers/me closes the store", async () => {
     const s = await createSeller(t);
     ok(await api("DELETE", "/sellers/me", { token: s.token }));
-    expect((await api("GET", `/sellers/by-id/${s.sellerId}`)).status).toBe(404);
+    expect([403, 404]).toContain(
+      (await api("GET", "/sellers/me", { token: s.token })).status,
+    );
   });
 });
 
@@ -148,7 +142,7 @@ describe("admin: sellers", () => {
         token: admin.token,
       }),
     );
-    const store = ok(await api("GET", `/sellers/by-id/${seller.sellerId}`));
+    const store = ok(await api("GET", "/sellers/me", { token: seller.token }));
     expect(store.isVerified).toBe(true);
   });
 
@@ -159,14 +153,16 @@ describe("admin: sellers", () => {
         body: { rating: "4.50" },
       }),
     );
-    const store = ok(await api("GET", `/sellers/by-id/${seller.sellerId}`));
+    const store = ok(await api("GET", "/sellers/me", { token: seller.token }));
     expect(Number(store.rating)).toBe(4.5);
   });
 
   test("DELETE /sellers/admin/:userId removes the store", async () => {
     const s = await createSeller(t);
     ok(await api("DELETE", `/sellers/admin/${s.id}`, { token: admin.token }));
-    expect((await api("GET", `/sellers/by-id/${s.sellerId}`)).status).toBe(404);
+    expect([403, 404]).toContain(
+      (await api("GET", "/sellers/me", { token: s.token })).status,
+    );
   });
 
   test("404 for users without a store", async () => {

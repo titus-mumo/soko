@@ -52,7 +52,9 @@ describe("POST /reviews/me", () => {
   });
 
   test("updates the seller's rating and notifies them", async () => {
-    const store = ok(await api("GET", `/sellers/by-id/${m.seller.sellerId}`));
+    const store = ok(
+      await api("GET", "/sellers/me", { token: m.seller.token }),
+    );
     expect(Number(store.rating)).toBe(4);
     const notes = ok<{ type: string }[]>(
       await api("GET", "/notifications/me", { token: m.seller.token }),
@@ -111,15 +113,12 @@ describe("public review reads", () => {
     expect(Number(averageRating)).toBe(4);
   });
 
-  test("GET /reviews/seller/:id and …/rating", async () => {
-    const list = ok<{ id: string }[]>(
-      await api("GET", `/reviews/seller/${m.seller.sellerId}`),
-    );
-    expect(list.map((r) => r.id)).toContain(reviewId);
-    const { averageRating } = ok(
-      await api("GET", `/reviews/seller/${m.seller.sellerId}/rating`),
-    );
-    expect(Number(averageRating)).toBe(4);
+  test("there are no per-store review routes (stores are anonymous)", async () => {
+    for (const path of [
+      `/reviews/seller/${m.seller.sellerId}`,
+      `/reviews/seller/${m.seller.sellerId}/rating`,
+    ])
+      expect((await api("GET", path)).status).toBe(404);
   });
 
   test("a product with no reviews has an empty list", async () => {

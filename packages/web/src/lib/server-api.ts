@@ -20,10 +20,18 @@ import type {
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
 const REVALIDATE_SECONDS = 60;
 
+// This server renders pages for every visitor, so the API would otherwise
+// rate-limit all of them as one client. The key is server-only (no
+// NEXT_PUBLIC_ prefix): it's undefined in browser bundles.
+const INTERNAL_HEADERS: Record<string, string> = process.env.INTERNAL_API_KEY
+  ? { "x-internal-key": process.env.INTERNAL_API_KEY }
+  : {};
+
 /** GET a public endpoint. Returns null on 404 or when the API is unreachable. */
 async function getPublic<T>(path: string): Promise<T | null> {
   try {
     const res = await fetch(`${API_URL}${path}`, {
+      headers: INTERNAL_HEADERS,
       next: { revalidate: REVALIDATE_SECONDS },
     });
     if (!res.ok) return null;
@@ -125,6 +133,7 @@ export async function fetchCatalogue(params: {
     if (v !== undefined && v !== null && v !== "") qs.set(k, String(v));
   try {
     const res = await fetch(`${API_URL}/products?${qs}`, {
+      headers: INTERNAL_HEADERS,
       next: { revalidate: REVALIDATE_SECONDS },
     });
     if (!res.ok) return { items: [], nextCursor: null };

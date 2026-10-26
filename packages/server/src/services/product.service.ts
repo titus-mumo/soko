@@ -92,13 +92,6 @@ export async function getProductsBySeller(sellerId: string) {
   return await productRepository.findProductsBySellerId(sellerId);
 }
 
-export async function getActiveProductsBySeller(
-  sellerId: string,
-  page?: PageParams,
-) {
-  return await catalogueRepository.browse({ sellerId, ...page });
-}
-
 export async function getProductsByCategory(
   categoryId: string,
   page?: PageParams,

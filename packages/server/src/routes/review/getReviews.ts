@@ -2,9 +2,7 @@ import Elysia from "elysia";
 import { pageParams, paged } from "../../lib/paging";
 import {
   getProductReviews,
-  getSellerReviews,
   getAverageProductRating,
-  getAverageSellerRating,
   getBuyerReviews,
 } from "../../services/review.service";
 import { authPlugin } from "../../middleware/auth.middleware";
@@ -27,26 +25,6 @@ export const GetAverageProductRating = new Elysia().get(
   async (ctx) => {
     const { params } = ctx as any;
     const result = await getAverageProductRating(params.productId);
-    return { success: true, data: { averageRating: result } };
-  },
-);
-
-export const GetSellerReviews = new Elysia().get(
-  "/seller/:sellerId",
-  async (ctx) => {
-    const { params, query } = ctx as any;
-    return paged(
-      await getSellerReviews(params.sellerId, pageParams(query)),
-      publicReview,
-    );
-  },
-);
-
-export const GetAverageSellerRating = new Elysia().get(
-  "/seller/:sellerId/rating",
-  async (ctx) => {
-    const { params } = ctx as any;
-    const result = await getAverageSellerRating(params.sellerId);
     return { success: true, data: { averageRating: result } };
   },
 );

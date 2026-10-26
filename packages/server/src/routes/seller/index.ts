@@ -1,5 +1,4 @@
 import Elysia from "elysia";
-import { GetSellerById } from "./publicSeller";
 import { OnboardSeller } from "./onboardSeller";
 import {
   GetSellerProfile,
@@ -16,7 +15,6 @@ import {
 export const sellerRoutes = new Elysia().group("/sellers", (app) =>
   app
     // Public
-    .use(GetSellerById)
     // Onboarding
     .use(OnboardSeller)
     // Seller profile management

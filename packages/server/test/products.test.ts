@@ -156,13 +156,6 @@ describe("public product reads", () => {
     expect(list.map((p) => p.id)).not.toContain(draft.id);
   });
 
-  test("GET /products/by-seller/:sellerId lists the store's active products", async () => {
-    const list = ok<{ id: string }[]>(
-      await api("GET", `/products/by-seller/${seller.sellerId}`),
-    );
-    expect(list.map((p) => p.id)).toContain(product.id);
-  });
-
   test("GET /products/:id/variants, images and tags", async () => {
     const variants = ok<{ id: string }[]>(
       await api("GET", `/products/${product.id}/variants`),
