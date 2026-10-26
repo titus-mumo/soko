@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { kenyanPhoneSchema } from "@/lib/phone";
 
 export const loginSchema = z.object({
   email: z.string().email("Enter a valid email address"),
@@ -7,25 +8,21 @@ export const loginSchema = z.object({
 
 export const registerSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
-  email: z.string().email("Enter a valid email address"),
+  email: z.string().email("Enter a valid email"),
+  phone: kenyanPhoneSchema,
   password: z
     .string()
-    .min(8, "Password must be at least 8 characters")
-    .regex(/[A-Z]/, "Include at least one uppercase letter")
-    .regex(/[0-9]/, "Include at least one number"),
+    .min(8, "Min. 8 characters")
+    .regex(/[A-Z]/, "Must include an uppercase letter")
+    .regex(/[0-9]/, "Must include a number"),
 });
 
 export const otpRequestSchema = z.object({
-  phone: z
-    .string()
-    .regex(
-      /^\+?[1-9]\d{6,14}$/,
-      "Enter a valid phone number (e.g. +254700000000)",
-    ),
+  phone: kenyanPhoneSchema,
 });
 
 export const otpVerifySchema = z.object({
-  phone: z.string().regex(/^\+?[1-9]\d{6,14}$/, "Invalid phone number"),
+  phone: kenyanPhoneSchema,
   code: z
     .string()
     .length(6, "Code must be exactly 6 digits")

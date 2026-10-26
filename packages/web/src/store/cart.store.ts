@@ -1,26 +1,37 @@
 import { create } from "zustand";
-import type { CartItem } from "@/lib/types";
+import type { CartLine } from "@/lib/types";
 
 interface CartStore {
-  items: CartItem[];
+  items: CartLine[];
   itemCount: number;
   subtotal: number;
-  setCart: (items: CartItem[]) => void;
-  addItem: (item: CartItem) => void;
+  /** Replace the cart. Pass the server subtotal when known (e.g. /cart/summary). */
+  setCart: (items: CartLine[], subtotal?: number) => void;
+  /** Set counts without item details — used for the nav badge on load. */
+  setTotals: (itemCount: number, subtotal: number) => void;
+  addItem: (item: CartLine) => void;
   removeItem: (itemId: string) => void;
   updateQuantity: (itemId: string, quantity: number) => void;
-  clear: () => void;
+  clearCart: () => void;
 }
 
-function computeSubtotal(items: CartItem[]) {
+function computeSubtotal(items: CartLine[]) {
   return items.reduce(
-    (sum, i) => sum + (i.price ?? Number(i.variant?.price ?? 0)) * i.quantity,
+    (sum, i) => sum + Number(i.details?.variant.price ?? 0) * i.quantity,
     0,
   );
 }
 
-function computeCount(items: CartItem[]) {
+function computeCount(items: CartLine[]) {
   return items.reduce((sum, i) => sum + i.quantity, 0);
+}
+
+function totals(items: CartLine[]) {
+  return {
+    items,
+    itemCount: computeCount(items),
+    subtotal: computeSubtotal(items),
+  };
 }
 
 export const useCartStore = create<CartStore>()((set) => ({
@@ -28,52 +39,36 @@ export const useCartStore = create<CartStore>()((set) => ({
   itemCount: 0,
   subtotal: 0,
 
-  setCart: (items) =>
+  setCart: (items, subtotal) =>
     set({
-      items,
-      itemCount: computeCount(items),
-      subtotal: computeSubtotal(items),
+      ...totals(items),
+      ...(subtotal !== undefined && { subtotal }),
     }),
+
+  setTotals: (itemCount, subtotal) => set({ itemCount, subtotal }),
 
   addItem: (item) =>
     set((s) => {
       const existing = s.items.find((i) => i.id === item.id);
       const updated = existing
         ? s.items.map((i) =>
-            i.id === item.id
-              ? { ...i, quantity: i.quantity + item.quantity }
-              : i,
+            i.id === item.id ? { ...i, quantity: item.quantity } : i,
           )
         : [...s.items, item];
-      return {
-        items: updated,
-        itemCount: computeCount(updated),
-        subtotal: computeSubtotal(updated),
-      };
+      return totals(updated);
     }),
 
   removeItem: (itemId) =>
-    set((s) => {
-      const updated = s.items.filter((i) => i.id !== itemId);
-      return {
-        items: updated,
-        itemCount: computeCount(updated),
-        subtotal: computeSubtotal(updated),
-      };
-    }),
+    set((s) => totals(s.items.filter((i) => i.id !== itemId))),
 
   updateQuantity: (itemId, quantity) =>
-    set((s) => {
-      const updated =
+    set((s) =>
+      totals(
         quantity <= 0
           ? s.items.filter((i) => i.id !== itemId)
-          : s.items.map((i) => (i.id === itemId ? { ...i, quantity } : i));
-      return {
-        items: updated,
-        itemCount: computeCount(updated),
-        subtotal: computeSubtotal(updated),
-      };
-    }),
+          : s.items.map((i) => (i.id === itemId ? { ...i, quantity } : i)),
+      ),
+    ),
 
-  clear: () => set({ items: [], itemCount: 0, subtotal: 0 }),
+  clearCart: () => set({ items: [], itemCount: 0, subtotal: 0 }),
 }));

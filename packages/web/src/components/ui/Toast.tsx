@@ -1,120 +1,113 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useToastStore, type ToastItem } from "@/store/toast.store";
+import { Icon, type IconName } from "./Icon";
 
-// ─── Individual toast ─────────────────────────────────────────────────────────
+const DEFAULT_DURATION = 4000;
+
+const TONE: Record<
+  ToastItem["type"],
+  { border: string; icon: IconName; iconColor: string; bar: string }
+> = {
+  success: {
+    border: "border-l-green-500",
+    icon: "check",
+    iconColor: "text-green-600 dark:text-green-400",
+    bar: "bg-green-500",
+  },
+  error: {
+    border: "border-l-red-500",
+    icon: "alert",
+    iconColor: "text-red-600 dark:text-red-400",
+    bar: "bg-red-500",
+  },
+  info: {
+    border: "border-l-blue-500",
+    icon: "info",
+    iconColor: "text-blue-600 dark:text-blue-400",
+    bar: "bg-blue-500",
+  },
+};
 
 function ToastEntry({ toast }: { toast: ToastItem }) {
   const remove = useToastStore((s) => s.remove);
+  const duration = toast.duration ?? DEFAULT_DURATION;
+  const [paused, setPaused] = useState(false);
+  // Time left survives pausing (hover / focus) and resuming.
+  const remaining = useRef(duration);
+  const startedAt = useRef(0);
 
   useEffect(() => {
-    const timer = setTimeout(() => remove(toast.id), toast.duration ?? 4000);
-    return () => clearTimeout(timer);
-  }, [toast.id, toast.duration, remove]);
+    if (paused) return;
+    startedAt.current = Date.now();
+    const timer = setTimeout(() => remove(toast.id), remaining.current);
+    return () => {
+      clearTimeout(timer);
+      remaining.current -= Date.now() - startedAt.current;
+    };
+  }, [paused, toast.id, remove]);
 
-  const styles: Record<ToastItem["type"], string> = {
-    success:
-      "border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950/40 dark:text-green-300",
-    error:
-      "border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300",
-    info: "border-zinc-200 bg-white text-zinc-800 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200",
-  };
-
-  const icons: Record<ToastItem["type"], React.ReactNode> = {
-    success: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M20 6 9 17l-5-5" />
-      </svg>
-    ),
-    error: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <circle cx="12" cy="12" r="10" />
-        <path d="m15 9-6 6M9 9l6 6" />
-      </svg>
-    ),
-    info: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <circle cx="12" cy="12" r="10" />
-        <path d="M12 16v-4M12 8h.01" />
-      </svg>
-    ),
-  };
+  const tone = TONE[toast.type];
 
   return (
     <div
+      role={toast.type === "error" ? "alert" : "status"}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={() => setPaused(false)}
       className={cn(
-        "flex items-start gap-3 rounded-md border px-4 py-3 text-sm",
-        styles[toast.type],
+        "relative flex animate-toast-in items-start gap-3 overflow-hidden rounded-xl border border-l-[3px] bg-white py-3 pl-3.5 pr-2 text-sm shadow-2xl shadow-zinc-950/10",
+        "border-zinc-200 text-zinc-800 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 dark:shadow-black/40",
+        tone.border,
       )}
-      role="alert"
     >
-      <span className="mt-px shrink-0">{icons[toast.type]}</span>
-      <span className="flex-1">{toast.message}</span>
+      <Icon
+        name={tone.icon}
+        size={16}
+        className={cn("mt-0.5", tone.iconColor)}
+      />
+      <span className="flex-1 leading-snug">{toast.message}</span>
       <button
         onClick={() => remove(toast.id)}
-        className="ml-2 shrink-0 opacity-60 transition-opacity hover:opacity-100"
-        aria-label="Dismiss"
+        className="tap-target -my-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+        aria-label="Dismiss notification"
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="13"
-          height="13"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M18 6 6 18M6 6l12 12" />
-        </svg>
+        <Icon name="x" size={14} />
       </button>
+      {/* Time remaining */}
+      <span
+        aria-hidden="true"
+        className={cn(
+          "absolute bottom-0 left-0 h-0.5 w-full origin-left animate-progress opacity-60",
+          tone.bar,
+        )}
+        style={{
+          animationDuration: `${duration}ms`,
+          animationPlayState: paused ? "paused" : "running",
+        }}
+      />
     </div>
   );
 }
 
-// ─── Container (rendered in layout) ──────────────────────────────────────────
-
 export function ToastContainer() {
   const toasts = useToastStore((s) => s.toasts);
-  if (toasts.length === 0) return null;
 
+  // The live region stays mounted so screen readers announce new toasts.
+  // On mobile it sits above the bottom tab bar.
   return (
-    <div className="fixed bottom-4 right-4 z-[100] flex w-full max-w-sm flex-col gap-2">
+    <div
+      aria-live="polite"
+      aria-relevant="additions"
+      className="pointer-events-none fixed inset-x-4 bottom-20 z-[100] flex flex-col gap-2 sm:inset-x-auto sm:right-6 sm:w-full sm:max-w-sm md:bottom-6"
+    >
       {toasts.map((t) => (
-        <ToastEntry key={t.id} toast={t} />
+        <div key={t.id} className="pointer-events-auto">
+          <ToastEntry toast={t} />
+        </div>
       ))}
     </div>
   );

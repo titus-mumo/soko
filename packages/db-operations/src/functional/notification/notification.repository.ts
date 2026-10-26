@@ -1,4 +1,5 @@
 import { db } from "src/db";
+import { pageNewestFirst, type Page, type PageParams } from "../../pagination";
 import { notificationsTable } from "src/schema";
 import { eq, and, isNull } from "drizzle-orm";
 
@@ -10,6 +11,23 @@ export type NotificationChannel = "push" | "sms" | "email";
 export type FindNotificationResponse = Notification | "notification_not_found";
 
 export class NotificationRepository {
+  // Paged, newest first. `unreadOnly` for the unread filter.
+  async pageNotificationsByUserId(
+    userId: string,
+    unreadOnly: boolean,
+    params?: PageParams,
+  ): Promise<Page<Notification>> {
+    return pageNewestFirst<Notification>(
+      notificationsTable,
+      and(
+        eq(notificationsTable.userId, userId),
+        unreadOnly ? eq(notificationsTable.isRead, false) : undefined,
+        isNull(notificationsTable.deletedAt),
+      ),
+      params,
+    );
+  }
+
   async insertNotification(
     notification: NewNotification,
   ): Promise<Notification | null> {

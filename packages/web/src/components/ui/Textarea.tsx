@@ -1,48 +1,92 @@
-import { TextareaHTMLAttributes, forwardRef, useId } from "react";
+"use client";
+
+import {
+  TextareaHTMLAttributes,
+  forwardRef,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+} from "react";
 import { cn } from "@/lib/utils";
+import { Field, controlClasses, describedBy } from "./Field";
 
 interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string;
+  /** Keep the label for screen readers but hide it visually. */
+  hideLabel?: boolean;
+  hint?: string;
   error?: string;
+  /** Grow with content instead of scrolling (default on). */
+  autoGrow?: boolean;
 }
 
+/** Textarea that grows to fit its content. */
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
-  ({ className, label, error, id: idProp, ...props }, ref) => {
+  (
+    {
+      className,
+      label,
+      hideLabel = false,
+      hint,
+      error,
+      autoGrow = true,
+      rows = 3,
+      id: idProp,
+      onChange,
+      ...props
+    },
+    forwardedRef,
+  ) => {
     const generatedId = useId();
     const id = idProp ?? generatedId;
+    const innerRef = useRef<HTMLTextAreaElement | null>(null);
+
+    const resize = useCallback(() => {
+      const el = innerRef.current;
+      if (!el || !autoGrow) return;
+      el.style.height = "auto";
+      el.style.height = `${el.scrollHeight}px`;
+    }, [autoGrow]);
+
+    // Fit initial / externally-set values (react-hook-form resets, edits).
+    useEffect(resize, [resize, props.value, props.defaultValue]);
+
+    const setRefs = (el: HTMLTextAreaElement | null) => {
+      innerRef.current = el;
+      if (typeof forwardedRef === "function") forwardedRef(el);
+      else if (forwardedRef) forwardedRef.current = el;
+    };
 
     return (
-      <div className="flex flex-col gap-1.5">
-        {label && (
-          <label
-            htmlFor={id}
-            className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-          >
-            {label}
-          </label>
-        )}
+      <Field
+        id={id}
+        label={label}
+        hideLabel={hideLabel}
+        hint={hint}
+        error={error}
+      >
         <textarea
-          ref={ref}
+          ref={setRefs}
           id={id}
-          rows={4}
-          className={cn(
-            "w-full resize-y rounded border px-3 py-2 text-sm",
-            "bg-white text-zinc-900 placeholder:text-zinc-400",
-            "border-zinc-200",
-            "dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder:text-zinc-600",
-            "dark:border-zinc-800",
-            "transition-colors",
-            "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent",
-            "disabled:cursor-not-allowed disabled:opacity-50",
-            error && "border-red-400 focus:ring-red-500 dark:border-red-600",
-            className,
-          )}
+          rows={rows}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={describedBy(id, error, hint)}
+          onChange={(e) => {
+            onChange?.(e);
+            resize();
+          }}
+          className={controlClasses({
+            error: !!error,
+            className: cn(
+              "h-auto py-2 leading-relaxed",
+              autoGrow ? "resize-none overflow-hidden" : "resize-y",
+              className,
+            ),
+          })}
           {...props}
         />
-        {error && (
-          <p className="text-xs text-red-500 dark:text-red-400">{error}</p>
-        )}
-      </div>
+      </Field>
     );
   },
 );

@@ -1,19 +1,19 @@
 import { api } from "./api";
-import type { Category, Product } from "./types";
+import type { ApiResponse, Category } from "./types";
 
-export async function getCategories(): Promise<Category[]> {
-  const { data } = await api.get("/categories");
+export async function getRootCategories(): Promise<Category[]> {
+  const { data } = await api.get<ApiResponse<Category[]>>("/categories");
+  return data.data;
+}
+
+export async function getSubCategories(parentId: string): Promise<Category[]> {
+  const { data } = await api.get<ApiResponse<Category[]>>(
+    `/categories/sub/${parentId}`,
+  );
   return data.data;
 }
 
 export async function getCategoryBySlug(slug: string): Promise<Category> {
-  const { data } = await api.get(`/categories/${slug}`);
-  return data.data;
-}
-
-export async function getProductsByCategory(
-  categoryId: string,
-): Promise<Product[]> {
-  const { data } = await api.get(`/products/by-category/${categoryId}`);
+  const { data } = await api.get<ApiResponse<Category>>(`/categories/${slug}`);
   return data.data;
 }

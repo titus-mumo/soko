@@ -1,13 +1,14 @@
 import Elysia from "elysia";
 import { authPlugin } from "../../middleware/auth.middleware";
 import { getCartItems, getCartSummary } from "../../services/cart.service";
+import { cartItem } from "../../lib/views";
 
 export const GetCartItems = new Elysia()
   .use(authPlugin)
   .get("/", async (ctx) => {
     const { userId } = ctx as any;
     const result = await getCartItems(userId);
-    return { success: true, data: result };
+    return { success: true, data: result.map(cartItem) };
   });
 
 export const GetCartSummary = new Elysia()
@@ -21,5 +22,8 @@ export const GetCartSummary = new Elysia()
       return { success: false, message: "Cart not found." };
     }
 
-    return { success: true, data: result };
+    return {
+      success: true,
+      data: { ...result, items: result.items.map(cartItem) },
+    };
   });

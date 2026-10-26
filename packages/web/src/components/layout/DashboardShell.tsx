@@ -1,94 +1,80 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import axios from "axios";
+import { adoptGuestCart } from "@/lib/guest-cart";
+import { useSyncSellerProfile } from "@/store/seller.store";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth.store";
-import { Sidebar } from "./Sidebar";
-import { TopBar } from "./TopBar";
-import { BottomNav } from "./BottomNav";
-import { ToastContainer } from "@/components/ui/Toast";
+import { onAuthHydrated, restoreSession } from "@/lib/session";
+import { syncCartTotals, syncUnreadCount } from "@/lib/sync";
+import { AppFrame } from "./AppFrame";
+import { AppShellSkeleton } from "./AppShellSkeleton";
+import { isSharedPath, setSessionHint } from "@/lib/session-hint";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+const UNREAD_POLL_MS = 60_000;
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const setAccessToken = useAuthStore((s) => s.setAccessToken);
+  const pathname = usePathname();
   const logout = useAuthStore((s) => s.logout);
-  // Stays true until we've both waited for Zustand to rehydrate from localStorage
-  // AND completed any necessary silent token refresh.
+  // Stays false until Zustand has rehydrated from localStorage AND any
+  // needed silent refresh has finished — never redirect before then.
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // useAuthStore.persist.hasHydrated() is false on the very first render —
-    // we must wait for the store to finish loading from localStorage before
-    // reading user, otherwise user is always null and we redirect immediately.
-    const runAuth = () => {
-      const { user, accessToken } = useAuthStore.getState();
+    let cancelled = false;
+
+    const runAuth = async () => {
+      const user = await restoreSession();
+      if (cancelled) return;
 
       if (!user) {
-        router.replace("/login");
+        logout(); // also clears the session hint
+        // A shared page (home, products…) reached via a stale hint: show
+        // its public version rather than demanding a sign-in.
+        if (isSharedPath(pathname)) window.location.reload();
+        else router.replace(`/login?next=${encodeURIComponent(pathname)}`);
         return;
       }
-
-      //Admin should not access this page
+      // Admins have their own area.
       if (user.role === "admin") {
-        router.replace("/admin");
-      }
-
-      if (!accessToken) {
-        // User survived refresh (persisted) but token is gone — silently renew
-        axios
-          .post(`${BASE_URL}/auth/refresh`, {}, { withCredentials: true })
-          .then(({ data }) => {
-            setAccessToken(data.data.accessToken);
-            setReady(true);
-          })
-          .catch(() => {
-            logout();
-            router.replace("/login");
-          });
+        if (isSharedPath(pathname)) {
+          setSessionHint(false);
+          window.location.reload();
+        } else {
+          router.replace("/admin");
+        }
         return;
       }
-
+      // Before any page reads the cart: bring in items added while signed out.
+      await adoptGuestCart();
+      if (cancelled) return;
       setReady(true);
     };
 
-    if (useAuthStore.persist.hasHydrated()) {
-      // Store already hydrated (e.g. navigating between pages)
+    // Wait for the store to load from localStorage before reading the user.
+    const unsub = onAuthHydrated(() => {
       runAuth();
-    } else {
-      // Wait for rehydration to finish before checking auth
-      const unsub = useAuthStore.persist.onFinishHydration(runAuth);
-      return unsub;
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    });
+    return () => {
+      cancelled = true;
+      unsub();
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- runs once per mount
 
-  if (!ready) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-white dark:bg-zinc-950">
-        <span className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-200 border-t-blue-600 dark:border-zinc-700" />
-      </div>
-    );
-  }
+  // Seller store id, so product cards can recognise own listings.
+  useSyncSellerProfile(ready);
 
-  return (
-    <div className="flex h-screen bg-zinc-50 dark:bg-zinc-950">
-      {/* Sidebar — desktop only */}
-      <div className="hidden md:flex">
-        <Sidebar />
-      </div>
+  // Populate the nav badges once authenticated, and keep unread fresh.
+  useEffect(() => {
+    if (!ready) return;
+    syncCartTotals();
+    syncUnreadCount();
+    const interval = setInterval(syncUnreadCount, UNREAD_POLL_MS);
+    return () => clearInterval(interval);
+  }, [ready]);
 
-      {/* Main area */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <TopBar />
-        <main className="flex-1 overflow-y-auto pb-20 md:pb-0">{children}</main>
-      </div>
+  if (!ready) return <AppShellSkeleton label="Loading your account" />;
 
-      {/* Bottom nav — mobile only */}
-      <BottomNav />
-
-      <ToastContainer />
-    </div>
-  );
+  return <AppFrame>{children}</AppFrame>;
 }

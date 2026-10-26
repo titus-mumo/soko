@@ -3,10 +3,12 @@
   "module": "index.ts",
   "type": "module",
   "scripts": {
-    "dev": "bun run src/index.ts"
+    "dev": "cd ../.. && bun --watch --env-file=packages/server/.env packages/server/src/index.ts",
+    "test": "bun test"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "postgres": "^3.4.8"
   },
   "peerDependencies": {
     "typescript": "^5"

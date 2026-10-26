@@ -1,16 +1,29 @@
 import { api } from "./api";
-import type { User, Order, Category } from "./types";
+import { getPage, type Paged, type PageRequest } from "./paging";
+import type {
+  ApiResponse,
+  Category,
+  DeliveryZone,
+  NotificationChannel,
+  Order,
+  OrderStatus,
+  PaymentStatus,
+  User,
+  UserRole,
+} from "./types";
+import type { Dispute, DisputeStatus } from "./disputes.api";
+
+export type { Dispute, DisputeStatus };
 
 // ─── Users ────────────────────────────────────────────────────────────────────
 
-export async function getAllUsers(): Promise<User[]> {
-  const { data } = await api.get("/users/admin");
-  return data.data;
+export function getAllUsers(page?: PageRequest): Promise<Paged<User>> {
+  return getPage<User>("/users/admin", page);
 }
 
 export async function updateUserRole(
   userId: string,
-  role: "buyer" | "seller" | "admin",
+  role: UserRole,
 ): Promise<void> {
   await api.patch(`/users/admin/${userId}/role`, { role });
 }
@@ -25,15 +38,17 @@ export async function deleteUser(userId: string): Promise<void> {
 
 // ─── Orders ───────────────────────────────────────────────────────────────────
 
-export async function getOrdersByStatus(status: string): Promise<Order[]> {
-  const { data } = await api.get(`/orders/admin/status/${status}`);
-  return data.data;
+export function getOrdersByStatus(
+  status: OrderStatus,
+  page?: PageRequest,
+): Promise<Paged<Order>> {
+  return getPage<Order>(`/orders/admin/status/${status}`, page);
 }
 
 export async function getOrdersByPaymentStatus(
-  paymentStatus: string,
+  paymentStatus: PaymentStatus,
 ): Promise<Order[]> {
-  const { data } = await api.get(
+  const { data } = await api.get<ApiResponse<Order[]>>(
     `/orders/admin/payment-status/${paymentStatus}`,
   );
   return data.data;
@@ -41,7 +56,7 @@ export async function getOrdersByPaymentStatus(
 
 export async function adminUpdateOrderStatus(
   orderId: string,
-  status: string,
+  status: OrderStatus,
 ): Promise<void> {
   await api.patch(`/orders/admin/${orderId}/status`, { status });
 }
@@ -49,7 +64,7 @@ export async function adminUpdateOrderStatus(
 // ─── Categories ───────────────────────────────────────────────────────────────
 
 export async function getAllCategories(): Promise<Category[]> {
-  const { data } = await api.get("/categories/all");
+  const { data } = await api.get<ApiResponse<Category[]>>("/categories/all");
   return data.data;
 }
 
@@ -58,7 +73,10 @@ export async function createCategory(payload: {
   slug: string;
   parentId?: string;
 }): Promise<Category> {
-  const { data } = await api.post("/categories", payload);
+  const { data } = await api.post<ApiResponse<Category>>(
+    "/categories",
+    payload,
+  );
   return data.data;
 }
 
@@ -66,7 +84,10 @@ export async function updateCategory(
   categoryId: string,
   payload: { name?: string; slug?: string; parentId?: string },
 ): Promise<Category> {
-  const { data } = await api.patch(`/categories/${categoryId}`, payload);
+  const { data } = await api.patch<ApiResponse<Category>>(
+    `/categories/${categoryId}`,
+    payload,
+  );
   return data.data;
 }
 
@@ -84,17 +105,9 @@ export async function deleteCategory(categoryId: string): Promise<void> {
 
 // ─── Delivery zones ───────────────────────────────────────────────────────────
 
-export interface DeliveryZone {
-  id: string;
-  name: string;
-  county: string;
-  baseFee: string;
-  estimatedDays: number;
-  isActive?: boolean;
-}
-
 export async function getDeliveryZones(): Promise<DeliveryZone[]> {
-  const { data } = await api.get("/delivery/zones");
+  const { data } =
+    await api.get<ApiResponse<DeliveryZone[]>>("/delivery/zones");
   return data.data;
 }
 
@@ -104,7 +117,10 @@ export async function createDeliveryZone(payload: {
   estimatedDays: number;
   baseFee: string;
 }): Promise<DeliveryZone> {
-  const { data } = await api.post("/delivery/admin/zones", payload);
+  const { data } = await api.post<ApiResponse<DeliveryZone>>(
+    "/delivery/admin/zones",
+    payload,
+  );
   return data.data;
 }
 
@@ -133,25 +149,11 @@ export async function deleteDeliveryZone(zoneId: string): Promise<void> {
 
 // ─── Disputes ────────────────────────────────────────────────────────────────
 
-export type DisputeStatus = "open" | "under_review" | "resolved" | "closed";
-
-export interface Dispute {
-  id: string;
-  orderId: string;
-  buyerId: string;
-  reason: string;
-  description?: string;
-  status: DisputeStatus;
-  resolution?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export async function getDisputesByStatus(
+export function getDisputesByStatus(
   status: DisputeStatus,
-): Promise<Dispute[]> {
-  const { data } = await api.get(`/disputes/admin/status/${status}`);
-  return data.data;
+  page?: PageRequest,
+): Promise<Paged<Dispute>> {
+  return getPage<Dispute>(`/disputes/admin/status/${status}`, page);
 }
 
 export async function reviewDispute(disputeId: string): Promise<void> {
@@ -176,28 +178,36 @@ export interface Promotion {
   code: string;
   type: "percent" | "fixed";
   value: string;
-  minOrderAmount?: string;
-  maxUses?: number;
-  usedCount?: number;
-  expiresAt?: string;
+  minOrderAmount?: string | null;
+  maxUses?: number | null;
+  usedCount?: number | null;
+  expiresAt?: string | null;
   isActive?: boolean;
   createdAt: string;
 }
 
-export async function getPlatformPromotions(): Promise<Promotion[]> {
-  const { data } = await api.get("/promotions/admin");
-  return data.data;
-}
-
-export async function createPlatformPromotion(payload: {
+export interface CreatePromotionPayload {
   code: string;
   type: "percent" | "fixed";
   value: string;
   minOrderAmount?: string;
   maxUses?: number;
   expiresAt?: string;
-}): Promise<Promotion> {
-  const { data } = await api.post("/promotions/admin", payload);
+}
+
+export function getPlatformPromotions(
+  page?: PageRequest,
+): Promise<Paged<Promotion>> {
+  return getPage<Promotion>("/promotions/admin", page);
+}
+
+export async function createPlatformPromotion(
+  payload: CreatePromotionPayload,
+): Promise<Promotion> {
+  const { data } = await api.post<ApiResponse<Promotion>>(
+    "/promotions/admin",
+    payload,
+  );
   return data.data;
 }
 
@@ -208,7 +218,7 @@ export async function sendNotification(payload: {
   type: string;
   title: string;
   body: string;
-  channel: "push" | "sms" | "email";
+  channel: NotificationChannel;
 }): Promise<void> {
   await api.post("/notifications/admin/send", payload);
 }
@@ -218,7 +228,7 @@ export async function broadcastNotification(payload: {
   type: string;
   title: string;
   message: string;
-  channel: "push" | "sms" | "email";
+  channel: NotificationChannel;
 }): Promise<void> {
   await api.post("/notifications/admin/broadcast", payload);
 }

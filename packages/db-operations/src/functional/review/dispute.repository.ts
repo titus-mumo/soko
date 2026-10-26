@@ -1,4 +1,5 @@
 import { db } from "src/db";
+import { pageNewestFirst, type Page, type PageParams } from "../../pagination";
 import { disputesTable } from "src/schema";
 import { eq, and, isNull } from "drizzle-orm";
 
@@ -10,6 +11,22 @@ export type DisputeStatus = "open" | "under_review" | "resolved" | "closed";
 export type FindDisputeResponse = Dispute | "dispute_not_found";
 
 export class DisputeRepository {
+  // Paged, newest first: by who raised it, or by status (admin).
+  async pageDisputes(
+    by: { raisedBy?: string; status?: DisputeStatus },
+    params?: PageParams,
+  ): Promise<Page<Dispute>> {
+    return pageNewestFirst<Dispute>(
+      disputesTable,
+      and(
+        by.raisedBy ? eq(disputesTable.raisedBy, by.raisedBy) : undefined,
+        by.status ? eq(disputesTable.status, by.status) : undefined,
+        isNull(disputesTable.deletedAt),
+      ),
+      params,
+    );
+  }
+
   async insertDispute(dispute: NewDispute): Promise<Dispute | null> {
     const [res] = await db.insert(disputesTable).values(dispute).returning();
 

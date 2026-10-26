@@ -22,6 +22,20 @@
       "when": 1775301229257,
       "tag": "0002_bouncy_sandman",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792925197499,
+      "tag": "0003_hub_consolidation",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792925205623,
+      "tag": "0004_shipments_per_order",
+      "breakpoints": true
     }
   ]
 }

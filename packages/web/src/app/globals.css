@@ -9,14 +9,100 @@
 
   html {
     -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
   }
 
   body {
-    @apply bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50;
+    @apply bg-zinc-50 text-base leading-relaxed text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  /* Display headings: Geist, bold, tight tracking. */
+  h1,
+  h2,
+  h3 {
+    @apply font-display tracking-[-0.02em];
   }
 
   /* Remove default focus styles in favor of custom ring */
   :focus:not(:focus-visible) {
     outline: none;
+  }
+
+  /* Visible keyboard focus on every interactive element, not just the ones
+     that remember to add it. Form controls style their own focus ring. */
+  a,
+  button,
+  summary,
+  [role="button"],
+  [role="radio"],
+  [role="tab"],
+  [role="checkbox"],
+  [tabindex]:not([tabindex="-1"]) {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-50 dark:focus-visible:ring-offset-zinc-950;
+  }
+
+  input[type="checkbox"],
+  input[type="radio"] {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-900;
+  }
+
+  ::selection {
+    @apply bg-brand-600/30;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* Numbers that should line up and read as data. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* On touch screens, grow the hit area to at least 44×44 without changing
+     the visual size — compact desktop controls stay tappable on phones. */
+  @media (pointer: coarse) {
+    .tap-target {
+      position: relative;
+    }
+    .tap-target::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: max(100%, 44px);
+      height: max(100%, 44px);
+      transform: translate(-50%, -50%);
+    }
+  }
+
+  /* Hover affordances only where hover exists; touch shows them always. */
+  @media (hover: hover) {
+    .hover-reveal {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    .group:hover .hover-reveal,
+    .group:focus-within .hover-reveal {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 }

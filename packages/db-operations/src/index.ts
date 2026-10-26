@@ -23,3 +23,8 @@ export * from "./functional/promotion/promotion.repository";
 export * from "./functional/promotion/featuredListing.repository";
 export * from "./functional/auth/otp.repository";
 export * from "./functional/auth/refreshToken.repository";
+export * from "./phone";
+export * from "./functional/search/search.repository";
+export * from "./functional/cart/stock.repository";
+export * from "./pagination";
+export * from "./functional/product/catalogue.repository";

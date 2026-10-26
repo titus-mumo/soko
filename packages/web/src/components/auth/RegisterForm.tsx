@@ -7,12 +7,17 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { FormError } from "@/components/ui/FormError";
+import { AuthHeading, authLinkClass } from "./AuthHeading";
 import {
   registerSchema,
   type RegisterFormValues,
 } from "@/lib/validations/auth";
 import { api } from "@/lib/api";
+import { normalizeKenyanPhone } from "@/lib/phone";
 import { useAuthStore } from "@/store/auth.store";
+import { postLoginPath } from "@/lib/session";
+import { apiErrorMessage } from "@/lib/utils";
 
 export function RegisterForm() {
   const router = useRouter();
@@ -30,27 +35,27 @@ export function RegisterForm() {
   const onSubmit = async (values: RegisterFormValues) => {
     setServerError(null);
     try {
-      const { data } = await api.post("/auth/register", values);
+      const { data } = await api.post("/auth/register", {
+        ...values,
+        phone: normalizeKenyanPhone(values.phone),
+      });
       setAuth(data.data.accessToken, data.data.user);
-      router.replace("/dashboard");
+      // Drop pages cached as a guest before navigating in the new layout.
+      router.refresh();
+      router.replace(postLoginPath(data.data.user.role));
     } catch (err: unknown) {
-      const message =
-        (err as { response?: { data?: { message?: string } } }).response?.data
-          ?.message ?? "Registration failed. Please try again.";
-      setServerError(message);
+      setServerError(
+        apiErrorMessage(err, "Registration failed. Please try again."),
+      );
     }
   };
 
   return (
-    <div className="w-full max-w-sm">
-      <div className="mb-8">
-        <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-          Create an account
-        </h1>
-        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-          Join Soko — Kenya&apos;s marketplace
-        </p>
-      </div>
+    <div className="w-full max-w-sm animate-fade-in">
+      <AuthHeading
+        title="Create your account"
+        subtitle="Shop from sellers across Kenya and pay with M-Pesa."
+      />
 
       <form
         onSubmit={handleSubmit(onSubmit)}
@@ -58,6 +63,7 @@ export function RegisterForm() {
         noValidate
       >
         <Input
+          inputSize="lg"
           id="name"
           type="text"
           label="Full name"
@@ -67,6 +73,7 @@ export function RegisterForm() {
           {...register("name")}
         />
         <Input
+          inputSize="lg"
           id="email"
           type="email"
           label="Email"
@@ -75,40 +82,50 @@ export function RegisterForm() {
           error={errors.email?.message}
           {...register("email")}
         />
-        <div className="flex flex-col gap-1.5">
+        <Input
+          inputSize="lg"
+          id="phone"
+          type="tel"
+          label="Phone number"
+          placeholder="0712 345 678"
+          inputMode="tel"
+          autoComplete="tel"
+          error={errors.phone?.message}
+          {...register("phone")}
+        />
+        <div>
           <Input
+            inputSize="lg"
             id="password"
             type="password"
             label="Password"
-            placeholder="••••••••"
+            placeholder="Create a password"
             autoComplete="new-password"
             error={errors.password?.message}
             {...register("password")}
           />
           {!errors.password && (
-            <p className="text-xs text-zinc-400 dark:text-zinc-600">
-              Min. 8 characters, one uppercase, one number
+            <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+              At least 8 characters, with an uppercase letter and a number
             </p>
           )}
         </div>
 
-        {serverError && (
-          <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600 dark:border-red-900 dark:bg-red-950/20 dark:text-red-400">
-            {serverError}
-          </p>
-        )}
+        <FormError message={serverError} />
 
-        <Button type="submit" isLoading={isSubmitting} className="w-full">
+        <Button
+          type="submit"
+          size="lg"
+          isLoading={isSubmitting}
+          className="w-full"
+        >
           Create account
         </Button>
       </form>
 
-      <p className="mt-8 text-center text-xs text-zinc-500 dark:text-zinc-400">
+      <p className="mt-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
         Already have an account?{" "}
-        <Link
-          href="/login"
-          className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300"
-        >
+        <Link href="/login" className={authLinkClass}>
           Sign in
         </Link>
       </p>

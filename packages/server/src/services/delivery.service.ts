@@ -1,5 +1,12 @@
 import { getRepositories } from "../lib/repositories";
-import type { NewDeliveryZone, NewShipment } from "db-operations";
+import type {
+  Courier,
+  NewDeliveryZone,
+  Shipment,
+  ShipmentStatus,
+} from "db-operations";
+import { HUB_LABEL } from "../lib/hub";
+import { isActive, notifyBuyer, orderRef, syncOrderStatus } from "./fulfilment";
 
 const {
   deliveryZoneRepository,
@@ -7,7 +14,6 @@ const {
   shipmentEventRepository,
   orderItemRepository,
   orderRepository,
-  notificationRepository,
 } = getRepositories();
 
 // ─────────────────────────────────────────
@@ -74,11 +80,17 @@ export async function deleteDeliveryZone(
 // Shipments
 // ─────────────────────────────────────────
 
-export async function getShipmentByOrderItemId(orderItemId: string) {
-  const shipment =
-    await shipmentRepository.findShipmentByOrderItemId(orderItemId);
-  if (shipment === "shipment_not_found") return "shipment_not_found" as const;
-  return shipment;
+/**
+ * The buyer's view of their order's shipment and timeline. Null when the
+ * order isn't theirs or hasn't shipped from the hub yet.
+ */
+export async function getBuyerOrderShipment(userId: string, orderId: string) {
+  const order = await orderRepository.findOrderByIdAndBuyerId(orderId, userId);
+  if (order === "order_not_found") return "order_not_found" as const;
+  const shipment = await shipmentRepository.findShipmentByOrderId(orderId);
+  if (shipment === "shipment_not_found") return null;
+  const timeline = await getShipmentTimeline(shipment.id);
+  return timeline === "shipment_not_found" ? null : timeline;
 }
 
 export async function getShipmentByTrackingNumber(trackingNumber: string) {
@@ -88,48 +100,55 @@ export async function getShipmentByTrackingNumber(trackingNumber: string) {
   return shipment;
 }
 
-// Creates a shipment for an order item.
-// Call this after the seller confirms the order item.
-export async function createShipment(
-  sellerId: string,
-  orderItemId: string,
-  data: Pick<NewShipment, "courier">,
+/**
+ * The hub sends an order: one shipment for everything still in it. Only
+ * once every remaining item has been received at the hub.
+ */
+export async function createOrderShipment(
+  orderId: string,
+  data: { courier: Courier; trackingNumber?: string },
 ): Promise<
-  | "order_item_not_found"
+  | "order_not_found"
+  | "order_not_paid"
   | "shipment_already_exists"
-  | Awaited<ReturnType<typeof shipmentRepository.insertShipment>>
+  | "items_not_at_hub"
+  | Shipment
 > {
-  // Confirm the order item belongs to this seller.
-  const orderItem = await orderItemRepository.findOrderItemById(orderItemId);
-  if (orderItem === "order_item_not_found") return "order_item_not_found";
-  if ((orderItem as any).sellerId !== sellerId) return "order_item_not_found";
+  const order = await orderRepository.findOrderById(orderId);
+  if (order === "order_not_found") return "order_not_found";
+  if (order.paymentStatus !== "paid") return "order_not_paid";
 
-  // Prevent duplicate shipments for the same order item.
-  const existing =
-    await shipmentRepository.findShipmentByOrderItemId(orderItemId);
+  const existing = await shipmentRepository.findShipmentByOrderId(orderId);
   if (existing !== "shipment_not_found") return "shipment_already_exists";
 
+  const items = (await orderItemRepository.findItemsByOrderId(orderId)).filter(
+    isActive,
+  );
+  if (items.length === 0 || items.some((i) => i.status !== "at_hub"))
+    return "items_not_at_hub";
+
   const shipment = await shipmentRepository.insertShipment({
-    orderItemId,
+    orderId,
     courier: data.courier,
+    trackingNumber: data.trackingNumber,
     status: "awaiting_pickup",
   });
+  if (!shipment) throw new Error("Failed to create shipment");
 
-  // Log the initial shipment event.
-  if (shipment) {
-    await shipmentEventRepository.insertShipmentEvent({
-      shipmentId: shipment.id,
-      status: "awaiting_pickup",
-      description: "Shipment created and awaiting pickup.",
-    });
-  }
+  await shipmentEventRepository.insertShipmentEvent({
+    shipmentId: shipment.id,
+    status: "awaiting_pickup",
+    description: "Packed at the hub and waiting for the courier.",
+    location: HUB_LABEL,
+  });
+  await syncOrderStatus(orderId);
 
   return shipment;
 }
 
 export async function assignTrackingNumber(
   shipmentId: string,
-  courier: "sendy" | "fargo" | "self" | "other",
+  courier: Courier,
   trackingNumber: string,
 ): Promise<"shipment_not_found" | "tracking_assigned"> {
   const result = await shipmentRepository.assignTracking(
@@ -143,101 +162,78 @@ export async function assignTrackingNumber(
   return "tracking_assigned";
 }
 
-// Advances the shipment status and logs the event.
-// Also updates the parent order item status to keep them in sync.
+// What the buyer is told at each shipment step. Steps not listed are quiet.
+const BUYER_MESSAGES: Partial<
+  Record<ShipmentStatus, [title: string, body: (ref: string) => string]>
+> = {
+  in_transit: [
+    "Your order has shipped",
+    (ref) => `Order ${ref} has left the Soko hub and is on its way.`,
+  ],
+  out_for_delivery: [
+    "Out for delivery",
+    (ref) => `Order ${ref} is out for delivery today.`,
+  ],
+  delivered: ["Delivered", (ref) => `Order ${ref} has been delivered. Enjoy!`],
+  failed: [
+    "Delivery attempt failed",
+    (ref) => `We couldn't deliver order ${ref}. We'll try again soon.`,
+  ],
+  returned: [
+    "Order returned",
+    (ref) => `Order ${ref} was returned to the Soko hub. We'll be in touch.`,
+  ],
+};
+
+/**
+ * Advances the order's shipment, logs the event, moves the items along
+ * (shipped / delivered), re-derives the order status and tells the buyer —
+ * once per step, for the whole order.
+ */
 export async function updateShipmentStatus(
   shipmentId: string,
-  status:
-    | "awaiting_pickup"
-    | "in_transit"
-    | "out_for_delivery"
-    | "delivered"
-    | "failed"
-    | "returned",
+  status: ShipmentStatus,
   meta?: { description?: string; location?: string },
 ): Promise<"shipment_not_found" | "status_updated"> {
   const shipment = await shipmentRepository.updateShipmentStatus(
     shipmentId,
     status,
   );
-
   if (shipment === "shipment_not_found") return "shipment_not_found";
 
-  // Log the status change as a shipment event.
   await shipmentEventRepository.insertShipmentEvent({
     shipmentId,
     status,
-    description: meta?.description ?? `Shipment status updated to ${status}.`,
+    description:
+      meta?.description ??
+      BUYER_MESSAGES[status]?.[0] ??
+      `Shipment ${status.replace(/_/g, " ")}.`,
     location: meta?.location,
   });
 
-  // Map shipment status to order item status to keep them in sync.
-  const orderItemStatusMap: Record<
-    string,
-    | "pending"
-    | "confirmed"
-    | "processing"
-    | "shipped"
-    | "delivered"
-    | "cancelled"
-    | "refunded"
-  > = {
-    awaiting_pickup: "confirmed",
-    in_transit: "shipped",
-    out_for_delivery: "shipped",
-    delivered: "delivered",
-    failed: "processing",
-    returned: "cancelled",
-  };
-
-  const orderItemStatus = orderItemStatusMap[status];
-
-  if (orderItemStatus) {
-    await orderItemRepository.updateOrderItemStatus(
-      shipment.orderItemId,
-      (shipment as any).sellerId,
-      orderItemStatus,
+  if (status === "in_transit" || status === "out_for_delivery") {
+    await orderItemRepository.updateStatusByOrderIdWhere(
+      shipment.orderId,
+      ["at_hub"],
+      "shipped",
+    );
+  } else if (status === "delivered") {
+    await orderItemRepository.updateStatusByOrderIdWhere(
+      shipment.orderId,
+      ["at_hub", "shipped"],
+      "delivered",
     );
   }
 
-  // Notify the buyer of shipment status changes that affect them.
-  const notifyStatuses = [
-    "in_transit",
-    "out_for_delivery",
-    "delivered",
-    "failed",
-    "returned",
-  ];
-
-  if (notifyStatuses.includes(status)) {
-    const orderItem = await orderItemRepository.findOrderItemById(
-      shipment.orderItemId,
+  const synced = await syncOrderStatus(shipment.orderId);
+  const message = BUYER_MESSAGES[status];
+  if (synced && message) {
+    await notifyBuyer(
+      synced.order.buyerId,
+      "shipment_update",
+      message[0],
+      message[1](orderRef(shipment.orderId)),
     );
-
-    if (orderItem !== "order_item_not_found") {
-      const order = await orderRepository.findOrderById(
-        (orderItem as any).orderId,
-      );
-
-      if (order !== "order_not_found") {
-        const statusMessages: Record<string, string> = {
-          in_transit: "Your order is on its way!",
-          out_for_delivery: "Your order is out for delivery today.",
-          delivered: "Your order has been delivered. Enjoy!",
-          failed: "Delivery of your order failed. We will retry soon.",
-          returned: "Your order has been returned.",
-        };
-
-        await notificationRepository.insertNotification({
-          userId: order.buyerId,
-          type: "shipment_update",
-          title: "Shipment Update",
-          body:
-            statusMessages[status] ?? `Your shipment status is now ${status}.`,
-          channel: "push",
-        });
-      }
-    }
   }
 
   return "status_updated";
@@ -271,13 +267,7 @@ export async function getShipmentTimeline(shipmentId: string) {
 export async function bulkInsertShipmentEvents(
   shipmentId: string,
   events: Array<{
-    status:
-      | "awaiting_pickup"
-      | "in_transit"
-      | "out_for_delivery"
-      | "delivered"
-      | "failed"
-      | "returned";
+    status: ShipmentStatus;
     description?: string;
     location?: string;
     happenedAt?: Date;

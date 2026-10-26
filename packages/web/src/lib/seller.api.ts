@@ -1,35 +1,39 @@
 import { api } from "./api";
-import type { SellerProfile } from "./types";
+import type { ApiResponse, SellerProfile } from "./types";
 
-export interface SellerOnboardPayload {
+export interface SellerProfilePayload {
   storeName: string;
   storeSlug: string;
   storeDescription?: string;
   storeLogo?: string;
 }
 
-export interface SellerStats {
-  totalSales: number;
-  activeListings: number;
-  pendingOrders: number;
-  totalRevenue: number;
-}
-
 export async function getSellerProfile(): Promise<SellerProfile> {
-  const { data } = await api.get("/sellers/me");
+  const { data } = await api.get<ApiResponse<SellerProfile>>("/sellers/me");
   return data.data;
 }
 
+/** Creates the store. The server upgrades the user's role to seller. */
 export async function createSellerProfile(
-  payload: SellerOnboardPayload,
+  payload: SellerProfilePayload,
 ): Promise<SellerProfile> {
-  const { data } = await api.post("/sellers/onboard", payload);
+  const { data } = await api.post<ApiResponse<SellerProfile>>(
+    "/sellers/onboard",
+    payload,
+  );
   return data.data;
 }
 
 export async function updateSellerProfile(
-  payload: Partial<SellerOnboardPayload>,
+  payload: Partial<SellerProfilePayload>,
 ): Promise<SellerProfile> {
-  const { data } = await api.patch("/sellers/me", payload);
+  const { data } = await api.patch<ApiResponse<SellerProfile>>(
+    "/sellers/me",
+    payload,
+  );
   return data.data;
+}
+
+export async function uploadVerificationDoc(docUrl: string): Promise<void> {
+  await api.post("/sellers/me/verification-docs", { docUrl });
 }

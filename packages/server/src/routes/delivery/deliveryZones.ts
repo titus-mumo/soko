@@ -9,11 +9,12 @@ import {
   updateDeliveryZoneEstimatedDays,
   deleteDeliveryZone,
 } from "../../services/delivery.service";
+import { publicZone } from "../../lib/views";
 
 // Public
 export const GetAllDeliveryZones = new Elysia().get("/zones", async () => {
   const result = await getAllDeliveryZones();
-  return { success: true, data: result };
+  return { success: true, data: result.map(publicZone) };
 });
 
 export const GetDeliveryZonesByCounty = new Elysia().get(
@@ -30,7 +31,7 @@ export const GetDeliveryZonesByCounty = new Elysia().get(
       };
     }
 
-    return { success: true, data: result };
+    return { success: true, data: result.map(publicZone) };
   },
 );
 

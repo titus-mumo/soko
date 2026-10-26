@@ -1,6 +1,7 @@
 import Elysia from "elysia";
 import { authPlugin } from "../../middleware/auth.middleware";
 import { getPaymentByOrderId } from "../../services/payment.service";
+import { buyerPayment } from "../../lib/views";
 
 export const GetPaymentByOrderId = new Elysia()
   .use(authPlugin)
@@ -17,5 +18,5 @@ export const GetPaymentByOrderId = new Elysia()
       return { success: false, message: "Payment not found." };
     }
 
-    return { success: true, data: result };
+    return { success: true, data: buyerPayment(result) };
   });

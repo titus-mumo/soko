@@ -1,4 +1,5 @@
 import Elysia, { t } from "elysia";
+import { pageParams, paged } from "../../lib/paging";
 import { adminPlugin } from "../../middleware/auth.middleware";
 import {
   getAllUsers,
@@ -10,9 +11,9 @@ import {
 
 export const GetAllUsers = new Elysia()
   .use(adminPlugin)
-  .get("/admin", async () => {
-    const result = await getAllUsers();
-    return { success: true, data: result };
+  .get("/admin", async (ctx) => {
+    const { query } = ctx as any;
+    return paged(await getAllUsers(pageParams(query)));
   });
 
 export const GetUserByIdAdmin = new Elysia()

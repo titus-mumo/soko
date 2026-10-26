@@ -7,9 +7,14 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { FormError } from "@/components/ui/FormError";
+import { Icon } from "@/components/ui/Icon";
+import { AuthHeading, authLinkClass } from "./AuthHeading";
 import { loginSchema, type LoginFormValues } from "@/lib/validations/auth";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/auth.store";
+import { postLoginPath } from "@/lib/session";
+import { apiErrorMessage } from "@/lib/utils";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
 
@@ -31,26 +36,47 @@ export function LoginForm() {
     try {
       const { data } = await api.post("/auth/login", values);
       setAuth(data.data.accessToken, data.data.user);
-      const isAdmin = data.data.user.role === "admin";
-      isAdmin ? router.replace("/admin") : router.replace("/dashboard");
+      // Drop pages cached as a guest before navigating in the new layout.
+      router.refresh();
+      router.replace(postLoginPath(data.data.user.role));
     } catch (err: unknown) {
-      const message =
-        (err as { response?: { data?: { message?: string } } }).response?.data
-          ?.message ?? "Invalid email or password.";
-      setServerError(message);
+      setServerError(apiErrorMessage(err, "Invalid email or password."));
     }
   };
 
   return (
-    <div className="w-full max-w-sm">
-      <div className="mb-8">
-        <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-          Sign in
-        </h1>
-        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-          Enter your credentials to access your account
-        </p>
+    <div className="w-full max-w-sm animate-fade-in">
+      <AuthHeading
+        title="Welcome back"
+        subtitle="Sign in to track orders, check out faster and manage your store."
+      />
+
+      <div className="space-y-3">
+        <Button
+          type="button"
+          variant="secondary"
+          size="lg"
+          className="w-full"
+          onClick={() => {
+            window.location.href = `${API_BASE}/auth/google`;
+          }}
+        >
+          <GoogleIcon className="h-4 w-4 shrink-0" />
+          Continue with Google
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="lg"
+          className="w-full"
+          onClick={() => router.push("/otp")}
+        >
+          <Icon name="phone" />
+          Sign in with phone number
+        </Button>
       </div>
+
+      <Divider />
 
       <form
         onSubmit={handleSubmit(onSubmit)}
@@ -61,6 +87,7 @@ export function LoginForm() {
           id="email"
           type="email"
           label="Email"
+          inputSize="lg"
           placeholder="you@example.com"
           autoComplete="email"
           error={errors.email?.message}
@@ -70,51 +97,29 @@ export function LoginForm() {
           id="password"
           type="password"
           label="Password"
-          placeholder="••••••••"
+          inputSize="lg"
+          placeholder="Your password"
           autoComplete="current-password"
           error={errors.password?.message}
           {...register("password")}
         />
 
-        {serverError && <ErrorBanner message={serverError} />}
+        <FormError message={serverError} />
 
-        <Button type="submit" isLoading={isSubmitting} className="w-full">
+        <Button
+          type="submit"
+          size="lg"
+          isLoading={isSubmitting}
+          className="mt-1 w-full"
+        >
           Sign in
         </Button>
       </form>
 
-      <div className="mt-6 space-y-3">
-        <Divider />
-
-        <Button
-          type="button"
-          variant="secondary"
-          className="w-full"
-          onClick={() => {
-            window.location.href = `${API_BASE}/auth/google`;
-          }}
-        >
-          <GoogleIcon className="mr-2 h-4 w-4 shrink-0" />
-          Continue with Google
-        </Button>
-
-        <Button
-          type="button"
-          variant="ghost"
-          className="w-full text-zinc-600 dark:text-zinc-400"
-          onClick={() => router.push("/otp")}
-        >
-          Sign in with phone number
-        </Button>
-      </div>
-
-      <p className="mt-8 text-center text-xs text-zinc-500 dark:text-zinc-400">
-        No account?{" "}
-        <Link
-          href="/register"
-          className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300"
-        >
-          Create one
+      <p className="mt-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
+        New to Soko?{" "}
+        <Link href="/register" className={authLinkClass}>
+          Create an account
         </Link>
       </p>
     </div>
@@ -123,21 +128,13 @@ export function LoginForm() {
 
 function Divider() {
   return (
-    <div className="flex items-center gap-3">
+    <div className="my-6 flex items-center gap-3" role="separator">
       <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
-      <span className="text-xs uppercase tracking-wider text-zinc-400 dark:text-zinc-600">
-        or
+      <span className="text-xs uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+        or with email
       </span>
       <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
     </div>
-  );
-}
-
-function ErrorBanner({ message }: { message: string }) {
-  return (
-    <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600 dark:border-red-900 dark:bg-red-950/20 dark:text-red-400">
-      {message}
-    </p>
   );
 }
 

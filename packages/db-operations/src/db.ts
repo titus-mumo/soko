@@ -12,4 +12,8 @@ config();
 // const client = postgres(Bun.env.DB_URL! as string);
 const client = postgres(Bun.env.DB_URL! as string);
 
-export const db = drizzle(client, { schema, logger: true });
+// Query logging is useful in dev but drowns test output.
+export const db = drizzle(client, {
+  schema,
+  logger: Bun.env.NODE_ENV !== "test",
+});

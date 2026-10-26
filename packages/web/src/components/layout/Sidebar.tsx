@@ -1,228 +1,390 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useNotificationStore } from "@/store/notification.store";
 import { useCartStore } from "@/store/cart.store";
-import { useAuthStore } from "@/store/auth.store";
+import {
+  canSell,
+  useAuthStore,
+  useMode,
+  useSessionUser,
+  type Mode,
+} from "@/store/auth.store";
+import { Badge } from "@/components/ui/Badge";
+import { IconButton } from "@/components/ui/Button";
+import { Icon, type IconName } from "@/components/ui/Icon";
+import { Tooltip } from "@/components/ui/Tooltip";
+import { Avatar } from "./Avatar";
+import { Wordmark } from "./Wordmark";
+import { useSignOut } from "./useSignOut";
+import {
+  ADMIN_NAV,
+  BUYING_NAV,
+  SELLING_NAV,
+  isActive,
+  type NavItem,
+  type NavSection,
+} from "./nav";
 
-interface NavItem {
-  href: string;
+const ROLE_TONE = {
+  admin: "error",
+  seller: "brand",
+  buyer: "neutral",
+} as const;
+
+function CountPill({
+  count,
+  active,
+  label,
+}: {
+  count: number;
+  active: boolean;
   label: string;
-  icon: React.ReactNode;
-  badge?: number;
-  sellerOnly?: boolean;
-}
-
-function HomeIcon() {
+}) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-      <polyline points="9 22 9 12 15 12 15 22" />
-    </svg>
-  );
-}
-
-function PackageIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M16.5 9.4 7.55 4.24" />
-      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-      <polyline points="3.29 7 12 12 20.71 7" />
-      <line x1="12" x2="12" y1="22" y2="12" />
-    </svg>
-  );
-}
-
-function ShoppingBagIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
-      <line x1="3" x2="21" y1="6" y2="6" />
-      <path d="M16 10a4 4 0 0 1-8 0" />
-    </svg>
-  );
-}
-
-function CartIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="9" cy="21" r="1" />
-      <circle cx="20" cy="21" r="1" />
-      <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-    </svg>
-  );
-}
-
-function BellIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-    </svg>
-  );
-}
-
-function StoreIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7" />
-      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-      <path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4" />
-      <path d="M2 7h20" />
-      <path d="M22 7v3a2 2 0 0 1-2 2a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12a2 2 0 0 1-2-2V7" />
-    </svg>
-  );
-}
-
-function NavLink({ item }: { item: NavItem }) {
-  const pathname = usePathname();
-  const isActive =
-    item.href === "/dashboard"
-      ? pathname === "/dashboard"
-      : pathname.startsWith(item.href);
-
-  return (
-    <Link
-      href={item.href}
+    <span
       className={cn(
-        "group flex items-center gap-3 rounded px-3 py-2 text-sm transition-colors",
-        isActive
-          ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50"
-          : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-200",
+        "tabular flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1.5 font-mono text-2xs font-semibold",
+        active
+          ? "bg-brand-600 text-white"
+          : "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
       )}
     >
-      <span className="shrink-0">{item.icon}</span>
-      <span className="flex-1 truncate">{item.label}</span>
-      {item.badge !== undefined && item.badge > 0 && (
-        <span className="flex h-4 min-w-4 items-center justify-center rounded bg-blue-600 px-1 text-[10px] font-medium text-white">
-          {item.badge > 99 ? "99+" : item.badge}
-        </span>
-      )}
-    </Link>
+      {count > 99 ? "99+" : count}
+      <span className="sr-only"> {label}</span>
+    </span>
   );
 }
 
-export function Sidebar() {
-  const unreadCount = useNotificationStore((s) => s.unreadCount);
-  const itemCount = useCartStore((s) => s.itemCount);
-  const user = useAuthStore((s) => s.user);
-  const isSeller = user?.role === "seller" || user?.role === "admin";
-
-  const buyerNav: NavItem[] = [
-    { href: "/dashboard", label: "Home", icon: <HomeIcon /> },
-    { href: "/products", label: "Products", icon: <PackageIcon /> },
-    { href: "/orders", label: "Orders", icon: <ShoppingBagIcon /> },
-    { href: "/cart", label: "Cart", icon: <CartIcon />, badge: itemCount },
-    {
-      href: "/notifications",
-      label: "Notifications",
-      icon: <BellIcon />,
-      badge: unreadCount,
-    },
-  ];
-
-  const sellerNav: NavItem[] = [
-    {
-      href: "/seller/products",
-      label: "My Listings",
-      icon: <StoreIcon />,
-      sellerOnly: true,
-    },
-    {
-      href: "/seller/orders",
-      label: "Seller Orders",
-      icon: <ShoppingBagIcon />,
-      sellerOnly: true,
-    },
-  ];
+function NavLink({
+  item,
+  count,
+  collapsed,
+  onNavigate,
+}: {
+  item: NavItem;
+  count?: number;
+  collapsed: boolean;
+  onNavigate?: () => void;
+}) {
+  const pathname = usePathname();
+  const active = isActive(item, pathname);
+  const hasCount = count !== undefined && count > 0;
+  const countLabel = item.badge === "cart" ? "items in cart" : "unread";
 
   return (
-    <aside className="flex h-full w-56 shrink-0 flex-col border-r border-zinc-100 bg-white dark:border-zinc-900 dark:bg-zinc-950">
-      <div className="px-4 py-5">
-        <span className="text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-          Soko
-        </span>
-      </div>
-
-      <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-4">
-        {buyerNav.map((item) => (
-          <NavLink key={item.href} item={item} />
-        ))}
-
-        {isSeller && (
+    <Tooltip
+      label={item.label}
+      side="right"
+      disabled={!collapsed}
+      className="flex w-full"
+    >
+      <Link
+        href={item.href}
+        onClick={onNavigate}
+        aria-current={active ? "page" : undefined}
+        aria-label={
+          collapsed
+            ? item.label + (hasCount ? `, ${count} ${countLabel}` : "")
+            : undefined
+        }
+        className={cn(
+          "relative flex h-10 items-center rounded-lg border-l-2 text-sm font-medium transition-colors duration-150",
+          collapsed ? "mx-auto w-10 justify-center" : "w-full gap-3 px-3",
+          active
+            ? "border-brand-600 bg-brand-600/10 text-brand-600 dark:text-brand-500"
+            : "border-transparent text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/60 dark:hover:text-zinc-100",
+        )}
+      >
+        <Icon name={item.icon} size={20} strokeWidth={1.5} />
+        {collapsed ? (
+          hasCount && (
+            <span
+              aria-hidden="true"
+              className="absolute right-1 top-1 h-2 w-2 rounded-full bg-brand-600 ring-2 ring-white dark:ring-zinc-900"
+            />
+          )
+        ) : (
           <>
-            <div className="my-2 border-t border-zinc-100 dark:border-zinc-900" />
-            <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-600">
-              Seller
-            </p>
-            {sellerNav.map((item) => (
-              <NavLink key={item.href} item={item} />
-            ))}
+            <span className="flex-1 truncate">{item.label}</span>
+            {hasCount && (
+              <CountPill count={count} active={active} label={countLabel} />
+            )}
           </>
         )}
+      </Link>
+    </Tooltip>
+  );
+}
+
+const MODES: { mode: Mode; label: string; icon: IconName; home: string }[] = [
+  { mode: "buying", label: "Shopping", icon: "bag", home: "/" },
+  { mode: "selling", label: "Selling", icon: "store", home: "/dashboard" },
+];
+
+/** Shopping / Selling toggle for sellers. */
+function ModeSwitcher({
+  collapsed,
+  onNavigate,
+}: {
+  collapsed: boolean;
+  onNavigate?: () => void;
+}) {
+  const mode = useMode();
+  const setMode = useAuthStore((s) => s.setMode);
+  const router = useRouter();
+
+  const choose = (next: (typeof MODES)[number]) => {
+    if (next.mode === mode) return;
+    setMode(next.mode);
+    onNavigate?.();
+    router.push(next.home);
+  };
+
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Mode"
+      className={cn(
+        "rounded-full bg-zinc-100 p-1 dark:bg-zinc-800/80",
+        collapsed
+          ? "mx-auto flex w-10 flex-col gap-1"
+          : "grid grid-cols-2 gap-1",
+      )}
+    >
+      {MODES.map((m) => {
+        const active = m.mode === mode;
+        return (
+          <Tooltip
+            key={m.mode}
+            label={m.label}
+            side="right"
+            disabled={!collapsed}
+            className="flex"
+          >
+            <button
+              type="button"
+              role="radio"
+              aria-checked={active}
+              aria-label={collapsed ? `${m.label} mode` : undefined}
+              onClick={() => choose(m)}
+              className={cn(
+                "flex h-8 w-full items-center justify-center gap-1.5 rounded-full text-xs font-medium transition-colors duration-150",
+                active
+                  ? "bg-brand-600 text-white shadow-sm"
+                  : "text-zinc-500 hover:text-zinc-900 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100",
+              )}
+            >
+              <Icon
+                name={m.icon}
+                size={collapsed ? 16 : 14}
+                strokeWidth={1.75}
+              />
+              {!collapsed && m.label}
+            </button>
+          </Tooltip>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Sidebar contents — the desktop rail (expandable/collapsible) and the
+ * mobile drawer. Navigation follows the current mode.
+ */
+export function Sidebar({
+  variant = "app",
+  collapsed = false,
+  onToggleCollapsed,
+  onNavigate,
+  onClose,
+  className,
+}: {
+  variant?: "app" | "admin";
+  /** Desktop icon-only rail. */
+  collapsed?: boolean;
+  /** Shows the edge toggle when provided (desktop). */
+  onToggleCollapsed?: () => void;
+  /** Called after a link is followed (closes the mobile drawer). */
+  onNavigate?: () => void;
+  /** Shown as a close button when rendered in the drawer. */
+  onClose?: () => void;
+  className?: string;
+}) {
+  const unreadCount = useNotificationStore((s) => s.unreadCount);
+  const itemCount = useCartStore((s) => s.itemCount);
+  const user = useSessionUser();
+  const mode = useMode();
+  const { signOut, signingOut } = useSignOut();
+
+  const sections: NavSection[] =
+    variant === "admin"
+      ? ADMIN_NAV
+      : mode === "selling"
+        ? SELLING_NAV
+        : BUYING_NAV;
+
+  const countFor = (item: NavItem) =>
+    item.badge === "cart"
+      ? itemCount
+      : item.badge === "unread"
+        ? unreadCount
+        : undefined;
+
+  const role = (user?.role ?? "buyer") as keyof typeof ROLE_TONE;
+  const home =
+    variant === "admin" ? "/admin" : mode === "selling" ? "/dashboard" : "/";
+
+  return (
+    <aside
+      className={cn(
+        "relative flex h-full shrink-0 flex-col border-r border-zinc-200 bg-white transition-[width] duration-200 ease-in-out dark:border-zinc-800 dark:bg-zinc-900",
+        collapsed ? "w-16" : "w-60",
+        className,
+      )}
+    >
+      <div
+        className={cn(
+          "flex h-14 shrink-0 items-center",
+          collapsed ? "justify-center" : "justify-between px-5",
+        )}
+      >
+        {collapsed ? (
+          <Link
+            href={home}
+            aria-label="Soko home"
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 font-display text-sm font-bold text-white"
+          >
+            S
+          </Link>
+        ) : (
+          <Wordmark href={home} />
+        )}
+        {onClose && (
+          <IconButton
+            label="Close menu"
+            size="sm"
+            onClick={onClose}
+            className="-mr-2"
+          >
+            <Icon name="x" size={18} />
+          </IconButton>
+        )}
+      </div>
+
+      {onToggleCollapsed && (
+        <button
+          type="button"
+          onClick={onToggleCollapsed}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-expanded={!collapsed}
+          className="absolute -right-3 top-1/2 z-10 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-zinc-300 bg-white text-zinc-500 shadow-sm transition-colors hover:text-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
+        >
+          <Icon
+            name={collapsed ? "chevron-right" : "chevron-left"}
+            size={14}
+            strokeWidth={2}
+          />
+        </button>
+      )}
+
+      <nav
+        aria-label="Main"
+        className={cn(
+          "flex-1 pb-4 pt-2",
+          collapsed ? "overflow-visible px-3" : "overflow-y-auto px-3",
+        )}
+      >
+        {sections.map((section, i) => (
+          <div key={section.title ?? i} className={cn(i > 0 && "mt-6")}>
+            {section.title &&
+              (collapsed ? (
+                <div
+                  aria-hidden="true"
+                  className="mx-auto mb-2 h-px w-6 bg-zinc-200 dark:bg-zinc-800"
+                />
+              ) : (
+                <p className="mb-1.5 px-3 text-2xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+                  {section.title}
+                </p>
+              ))}
+            <div className="space-y-0.5">
+              {section.items.map((item) => (
+                <NavLink
+                  key={item.href}
+                  item={item}
+                  count={countFor(item)}
+                  collapsed={collapsed}
+                  onNavigate={onNavigate}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
       </nav>
+
+      {variant === "app" && canSell(user) && (
+        <div className="px-3 pb-3">
+          <ModeSwitcher collapsed={collapsed} onNavigate={onNavigate} />
+        </div>
+      )}
+
+      {user && (
+        <div className="border-t border-zinc-200 p-3 dark:border-zinc-800">
+          {collapsed ? (
+            <div className="flex flex-col items-center gap-2">
+              <Tooltip label={user.name ?? "Account"} side="right">
+                <Link
+                  href="/profile"
+                  aria-label="Your profile"
+                  className="rounded-full"
+                >
+                  <Avatar name={user.name} size={36} />
+                </Link>
+              </Tooltip>
+              <Tooltip label="Sign out" side="right">
+                <IconButton
+                  label="Sign out"
+                  size="sm"
+                  onClick={signOut}
+                  isLoading={signingOut}
+                >
+                  <Icon name="logout" size={16} />
+                </IconButton>
+              </Tooltip>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 rounded-lg p-2">
+              <Avatar name={user.name} size={36} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                  {user.name ?? user.email ?? user.phone}
+                </p>
+                <Badge
+                  tone={ROLE_TONE[role] ?? "neutral"}
+                  size="sm"
+                  className="mt-0.5 capitalize"
+                >
+                  {role}
+                </Badge>
+              </div>
+              <Tooltip label="Sign out" side="top">
+                <IconButton
+                  label="Sign out"
+                  size="sm"
+                  onClick={signOut}
+                  isLoading={signingOut}
+                >
+                  <Icon name="logout" size={16} />
+                </IconButton>
+              </Tooltip>
+            </div>
+          )}
+        </div>
+      )}
     </aside>
   );
 }

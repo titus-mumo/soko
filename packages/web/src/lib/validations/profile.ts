@@ -1,11 +1,13 @@
 import { z } from "zod";
+import { optionalKenyanPhoneSchema } from "@/lib/phone";
 
 export const updateProfileSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Enter a valid email").optional().or(z.literal("")),
-  phone: z
+  phone: optionalKenyanPhoneSchema.optional(),
+  profilePhoto: z
     .string()
-    .regex(/^\+?[1-9]\d{6,14}$/, "Enter a valid phone number")
+    .url("Enter a valid URL")
     .optional()
     .or(z.literal("")),
 });

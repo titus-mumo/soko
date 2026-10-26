@@ -12,7 +12,10 @@
     "migrate": "bunx supabase migration up --include-all",
     "push": "bunx supabase db push",
     "update-local": "bunx supabase migration up --include-all",
-    "update-remote": "bunx supabase db push --include-all"
+    "update-remote": "bunx supabase db push --include-all",
+    "seed:seller": "bun run src/seed/seller.ts",
+    "seed:admin": "bun run src/seed/admin.ts",
+    "seed:catalogue": "bun run src/seed/catalogue.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.3.10",

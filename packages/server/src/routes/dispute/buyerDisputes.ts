@@ -1,17 +1,21 @@
 import Elysia, { t } from "elysia";
+import { pageParams, paged } from "../../lib/paging";
 import { authPlugin } from "../../middleware/auth.middleware";
 import {
   getBuyerDisputes,
   getDisputesByOrder,
   raiseDispute,
 } from "../../services/dispute.service";
+import { buyerDispute } from "../../lib/views";
 
 export const GetBuyerDisputes = new Elysia()
   .use(authPlugin)
   .get("/me", async (ctx) => {
-    const { userId } = ctx as any;
-    const result = await getBuyerDisputes(userId);
-    return { success: true, data: result };
+    const { userId, query } = ctx as any;
+    return paged(
+      await getBuyerDisputes(userId, pageParams(query)),
+      buyerDispute,
+    );
   });
 
 export const GetDisputesByOrder = new Elysia()
@@ -25,7 +29,7 @@ export const GetDisputesByOrder = new Elysia()
       return { success: false, message: "Order not found." };
     }
 
-    return { success: true, data: result };
+    return { success: true, data: result.map(buyerDispute) };
   });
 
 export const RaiseDispute = new Elysia().use(authPlugin).post(

@@ -1,26 +1,31 @@
 import { api } from "./api";
-import type { Notification } from "./types";
+import { getPage, type Paged, type PageRequest } from "./paging";
+import type { ApiResponse, Notification } from "./types";
 
-export async function getNotifications(): Promise<Notification[]> {
-  const { data } = await api.get("/notifications/me");
-  return data.data;
-}
-
-export async function getUnreadNotifications(): Promise<Notification[]> {
-  const { data } = await api.get("/notifications/me/unread");
-  return data.data;
+/** One page of notifications, newest first; `unreadOnly` for the Unread tab. */
+export function getUserNotifications(
+  page?: PageRequest,
+  unreadOnly = false,
+): Promise<Paged<Notification>> {
+  return getPage<Notification>(
+    unreadOnly ? "/notifications/me/unread" : "/notifications/me",
+    page,
+  );
 }
 
 export async function getUnreadCount(): Promise<number> {
-  const { data } = await api.get("/notifications/me/unread/count");
-  return data.data.count;
+  const { data } = await api.get<ApiResponse<{ count: number } | number>>(
+    "/notifications/me/unread/count",
+  );
+  // Tolerate either { count } or a bare number.
+  return typeof data.data === "number" ? data.data : (data.data?.count ?? 0);
 }
 
-export async function markNotificationRead(id: string): Promise<void> {
+export async function markAsRead(id: string): Promise<void> {
   await api.patch(`/notifications/me/${id}/read`);
 }
 
-export async function markAllNotificationsRead(): Promise<void> {
+export async function markAllAsRead(): Promise<void> {
   await api.patch("/notifications/me/read-all");
 }
 
@@ -28,6 +33,6 @@ export async function deleteNotification(id: string): Promise<void> {
   await api.delete(`/notifications/me/${id}`);
 }
 
-export async function clearAllNotifications(): Promise<void> {
+export async function clearAll(): Promise<void> {
   await api.delete("/notifications/me");
 }

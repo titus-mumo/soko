@@ -1,4 +1,5 @@
 import { db } from "src/db";
+import { pageNewestFirst, type Page, type PageParams } from "../../pagination";
 import { promotionsTable } from "src/schema";
 import { eq, and, isNull, sql } from "drizzle-orm";
 
@@ -10,6 +11,23 @@ export type PromotionType = "percent" | "fixed";
 export type FindPromotionResponse = Promotion | "promotion_not_found";
 
 export class PromotionRepository {
+  // Paged, newest first: a seller's promotions, or platform-wide ones.
+  async pagePromotions(
+    sellerId: string | null,
+    params?: PageParams,
+  ): Promise<Page<Promotion>> {
+    return pageNewestFirst<Promotion>(
+      promotionsTable,
+      and(
+        sellerId
+          ? eq(promotionsTable.sellerId, sellerId)
+          : isNull(promotionsTable.sellerId),
+        isNull(promotionsTable.deletedAt),
+      ),
+      params,
+    );
+  }
+
   async insertPromotion(promotion: NewPromotion): Promise<Promotion | null> {
     const [res] = await db
       .insert(promotionsTable)

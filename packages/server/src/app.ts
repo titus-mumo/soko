@@ -1,4 +1,5 @@
 import { Elysia } from "elysia";
+import { searchRoutes } from "./routes/search";
 import { cors } from "@elysiajs/cors"; // Import CORS plugin
 import { openapi } from "@elysiajs/openapi";
 import { authRoutes } from "./routes/auth";
@@ -14,6 +15,7 @@ import { reviewRoutes } from "./routes/review";
 import { disputeRoutes } from "./routes/dispute";
 import { promotionRoutes } from "./routes/promotion";
 import { notificationRoutes } from "./routes/notification";
+import { scrub } from "./lib/views";
 
 const checkSoko = "soko server is running!";
 
@@ -21,41 +23,70 @@ const App = new Elysia()
   .use(
     cors({
       origin: Bun.env.FRONTEND_URL || "http://localhost:3000", // Allow all origins for dev; specify your frontend URL (e.g., 'http://localhost:3000') for production
-      methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // Allowed HTTP methods
+      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], // Allowed HTTP methods
       allowedHeaders: ["Content-Type", "Authorization"], // Allowed headers
       credentials: true, // Enable if your frontend sends cookies or auth headers
     }),
   ) // Add CORS middleware
-  .onAfterResponse((context) => {
-    console.log(context.response);
+  // Log the request line only: response bodies carry tokens and personal data.
+  .onAfterResponse(({ request, set }) => {
+    if (Bun.env.NODE_ENV !== "test")
+      console.log(
+        `${request.method} ${new URL(request.url).pathname} ${set.status ?? 200}`,
+      );
+  })
+  // Safety net under the per-route views (lib/views.ts): soft-delete markers,
+  // internal timestamps and password hashes never leave the server.
+  .onAfterHandle({ as: "global" }, ({ response }) => {
+    if (
+      response &&
+      typeof response === "object" &&
+      !(response instanceof Response)
+    )
+      return scrub(response) as typeof response;
   })
   .onError(({ code, error, set }) => {
-    console.error(error);
+    // Expected 4xx (validation, not found) would flood test output.
+    if (
+      Bun.env.NODE_ENV !== "test" ||
+      code === "INTERNAL_SERVER_ERROR" ||
+      code === "UNKNOWN"
+    )
+      console.error(error);
+    // Error bodies say what went wrong in plain words — never the schema,
+    // stack or database message (those name tables, columns and rules).
     switch (code) {
       case "NOT_FOUND":
         set.status = 404;
-        return "Not Found :(";
+        return { success: false, message: "Not found." };
 
-      case "INTERNAL_SERVER_ERROR":
-        set.status = 500;
-        return "Internal Server Error :(";
-
-      case "VALIDATION":
+      case "VALIDATION": {
         set.status = 400;
-        return error;
+        const first = error.all?.[0] as { path?: string } | undefined;
+        const field = first?.path?.replace(/^\//, "").replace(/\//g, ".");
+        return {
+          success: false,
+          message: field
+            ? `Invalid or missing field: ${field}.`
+            : "Invalid request.",
+        };
+      }
+
+      case "PARSE":
+        set.status = 400;
+        return { success: false, message: "Malformed request body." };
 
       default:
-        set.status = 400;
-        return error;
+        set.status = 500;
+        return {
+          success: false,
+          message: "Something went wrong. Please try again.",
+        };
     }
   })
-  .use(openapi())
+  // API docs map every endpoint — development only.
+  .use(Bun.env.NODE_ENV === "production" ? new Elysia() : openapi())
   .get("/", () => checkSoko)
-  .get("/test-auth", async (ctx) => {
-    const authHeader = ctx.request.headers.get("authorization");
-    console.log("auth header:", authHeader);
-    return { authHeader };
-  })
   .use(authRoutes)
   .use(userRoutes)
   .use(sellerRoutes)
@@ -68,6 +99,7 @@ const App = new Elysia()
   .use(reviewRoutes)
   .use(disputeRoutes)
   .use(promotionRoutes)
-  .use(notificationRoutes);
+  .use(notificationRoutes)
+  .use(searchRoutes);
 
 export default App;

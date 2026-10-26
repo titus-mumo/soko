@@ -2,9 +2,10 @@ import Elysia from "elysia";
 import { authPlugin } from "../../middleware/auth.middleware";
 import {
   getShipmentByTrackingNumber,
-  getShipmentByOrderItemId,
+  getBuyerOrderShipment,
   getShipmentTimeline,
 } from "../../services/delivery.service";
+import { shipmentTracking } from "../../lib/views";
 
 // Public
 export const TrackShipment = new Elysia().get(
@@ -25,35 +26,23 @@ export const TrackShipment = new Elysia().get(
       return { success: false, message: "Shipment not found." };
     }
 
-    return { success: true, data: timeline };
+    return { success: true, data: shipmentTracking(timeline) };
   },
 );
 
-// Buyer
-export const GetShipmentByOrderItem = new Elysia()
+// Buyer — the shipment for one of their orders, with its timeline. `data` is
+// null until the order leaves the hub.
+export const GetOrderShipment = new Elysia()
   .use(authPlugin)
-  .get("/me/shipments/order-item/:orderItemId", async (ctx) => {
-    const { params, set } = ctx as any;
-    const shipment = await getShipmentByOrderItemId(params.orderItemId);
+  .get("/me/orders/:orderId/shipment", async (ctx) => {
+    const { userId, params, set } = ctx as any;
+    const result = await getBuyerOrderShipment(userId, params.orderId);
 
-    if (shipment === "shipment_not_found") {
+    if (result === "order_not_found") {
       set.status = 404;
-      return { success: false, message: "Shipment not found." };
+      return { success: false, message: "Order not found." };
     }
 
-    return { success: true, data: shipment };
-  });
-
-export const GetShipmentTimeline = new Elysia()
-  .use(authPlugin)
-  .get("/me/shipments/timeline/:shipmentId", async (ctx) => {
-    const { params, set } = ctx as any;
-    const result = await getShipmentTimeline(params.shipmentId);
-
-    if (result === "shipment_not_found") {
-      set.status = 404;
-      return { success: false, message: "Shipment not found." };
-    }
-
-    return { success: true, data: result };
+    // null until the hub ships the order.
+    return { success: true, data: result && shipmentTracking(result) };
   });

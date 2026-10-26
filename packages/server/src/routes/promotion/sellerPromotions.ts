@@ -1,4 +1,5 @@
 import Elysia, { t } from "elysia";
+import { pageParams, paged } from "../../lib/paging";
 import { sellerPlugin } from "../../middleware/auth.middleware";
 import {
   getSellerPromotions,
@@ -8,19 +9,20 @@ import {
   deactivatePromotion,
   deletePromotion,
 } from "../../services/promotion.service";
+import { sellerPromotion } from "../../lib/views";
 
 export const GetSellerPromotions = new Elysia()
   .use(sellerPlugin)
   .get("/seller", async (ctx) => {
-    const { userId, set } = ctx as any;
-    const result = await getSellerPromotions(userId);
+    const { userId, set, query } = ctx as any;
+    const result = await getSellerPromotions(userId, pageParams(query));
 
     if (result === "seller_not_found") {
       set.status = 404;
       return { success: false, message: "Seller profile not found." };
     }
 
-    return { success: true, data: result };
+    return paged(result, sellerPromotion);
   });
 
 export const CreatePromotion = new Elysia().use(sellerPlugin).post(
@@ -43,7 +45,7 @@ export const CreatePromotion = new Elysia().use(sellerPlugin).post(
     }
 
     set.status = 201;
-    return { success: true, data: result };
+    return { success: true, data: sellerPromotion(result) };
   },
   {
     body: t.Object({
@@ -76,7 +78,7 @@ export const UpdatePromotion = new Elysia().use(sellerPlugin).patch(
       return { success: false, message: "Promo code is already in use." };
     }
 
-    return { success: true, data: result };
+    return { success: true, data: sellerPromotion(result) };
   },
   {
     body: t.Object({

@@ -1,4 +1,5 @@
 import Elysia, { t } from "elysia";
+import { CONTACT_INFO_MESSAGE } from "../../lib/contact-filter";
 import { authPlugin } from "../../middleware/auth.middleware";
 import { createReview } from "../../services/review.service";
 
@@ -25,6 +26,10 @@ export const CreateReview = new Elysia().use(authPlugin).post(
         success: false,
         message: "You have already reviewed this item.",
       };
+    }
+    if (result === "contact_info") {
+      set.status = 400;
+      return { success: false, message: CONTACT_INFO_MESSAGE };
     }
     if (result === "invalid_rating") {
       set.status = 400;

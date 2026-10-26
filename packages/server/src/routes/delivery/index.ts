@@ -8,11 +8,7 @@ import {
   UpdateDeliveryZoneEstimatedDays,
   DeleteDeliveryZone,
 } from "./deliveryZones";
-import {
-  TrackShipment,
-  GetShipmentByOrderItem,
-  GetShipmentTimeline,
-} from "./shipmentTracking";
+import { TrackShipment, GetOrderShipment } from "./shipmentTracking";
 import {
   CreateShipment,
   AssignTrackingNumber,
@@ -27,10 +23,9 @@ export const deliveryRoutes = new Elysia().group("/delivery", (app) =>
     .use(GetDeliveryZonesByCounty)
     // Public — tracking
     .use(TrackShipment)
-    // Buyer — shipment tracking
-    .use(GetShipmentByOrderItem)
-    .use(GetShipmentTimeline)
-    // Seller — shipment management
+    // Buyer — their order's shipment
+    .use(GetOrderShipment)
+    // Hub (admin) — one shipment per order
     .use(CreateShipment)
     .use(AssignTrackingNumber)
     .use(UpdateShipmentStatus)

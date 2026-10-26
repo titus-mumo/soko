@@ -1,9 +1,12 @@
 import { getRepositories } from "../lib/repositories";
+import type { PageParams } from "db-operations";
+import { anyContactInfo } from "../lib/contact-filter";
 
 const {
   reviewRepository,
   orderItemRepository,
   orderRepository,
+  productVariantRepository,
   sellerProfileRepository,
   notificationRepository,
 } = getRepositories();
@@ -26,10 +29,12 @@ export async function createReview(
   | "order_not_delivered"
   | "already_reviewed"
   | "invalid_rating"
+  | "contact_info"
   | "review_created"
 > {
   // Validate rating is between 1 and 5.
   if (data.rating < 1 || data.rating > 5) return "invalid_rating";
+  if (anyContactInfo(data.comment)) return "contact_info";
 
   const orderItem = await orderItemRepository.findOrderItemById(
     data.orderItemId,
@@ -37,9 +42,9 @@ export async function createReview(
   if (orderItem === "order_item_not_found") return "order_item_not_found";
 
   // Confirm the order item belongs to the buyer via the order.
-  const order = await orderRepository.findOrderById((orderItem as any).orderId);
+  const order = await orderRepository.findOrderById(orderItem.orderId);
 
-  if (order === "order_not_found" || (order as any).buyerId !== userId) {
+  if (order === "order_not_found" || order.buyerId !== userId) {
     return "order_item_not_found";
   }
 
@@ -53,17 +58,31 @@ export async function createReview(
   );
   if (existing !== "review_not_found") return "already_reviewed";
 
+  // Order items reference a variant, not a product — resolve the product
+  // through it.
+  const variant = await productVariantRepository.findVariantById(
+    orderItem.productVariantId,
+  );
+  if (variant === "variant_not_found") return "order_item_not_found";
+
   const review = await reviewRepository.insertReview({
     orderItemId: data.orderItemId,
     reviewerId: userId,
     sellerId: orderItem.sellerId,
-    productId: (orderItem as any).productId,
+    productId: variant.productId,
     rating: data.rating,
     comment: data.comment,
     isVerifiedPurchase: true,
   });
 
   if (!review) throw new Error("Failed to create review");
+
+  // Order items carry the seller *profile* id; rating updates and
+  // notifications are keyed by the seller's *user* id.
+  const seller = await sellerProfileRepository.findSellerProfileById(
+    orderItem.sellerId,
+  );
+  if (seller === "seller_not_found") return "review_created";
 
   // Recompute and update the seller's average rating after every new review.
   const avgRating = await reviewRepository.getAverageRatingForSeller(
@@ -72,14 +91,14 @@ export async function createReview(
 
   if (avgRating) {
     await sellerProfileRepository.updateRating(
-      (orderItem as any).sellerUserId,
+      seller.userId,
       parseFloat(avgRating).toFixed(2),
     );
   }
 
   // Notify the seller of the new review.
   await notificationRepository.insertNotification({
-    userId: (orderItem as any).sellerUserId,
+    userId: seller.userId,
     type: "new_review",
     title: "New Review",
     body: `A buyer left a ${data.rating}-star review on one of your products.`,
@@ -89,16 +108,16 @@ export async function createReview(
   return "review_created";
 }
 
-export async function getProductReviews(productId: string) {
-  return await reviewRepository.findReviewsByProductId(productId);
+export async function getProductReviews(productId: string, page?: PageParams) {
+  return await reviewRepository.pageReviews({ productId }, page);
 }
 
-export async function getSellerReviews(sellerId: string) {
-  return await reviewRepository.findReviewsBySellerId(sellerId);
+export async function getSellerReviews(sellerId: string, page?: PageParams) {
+  return await reviewRepository.pageReviews({ sellerId }, page);
 }
 
-export async function getBuyerReviews(userId: string) {
-  return await reviewRepository.findReviewsByReviewerId(userId);
+export async function getBuyerReviews(userId: string, page?: PageParams) {
+  return await reviewRepository.pageReviews({ reviewerId: userId }, page);
 }
 
 export async function getAverageProductRating(productId: string) {

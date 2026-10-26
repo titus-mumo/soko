@@ -1,4 +1,5 @@
 import { getRepositories } from "../lib/repositories";
+import type { PageParams } from "db-operations";
 import type { NewNotification } from "db-operations";
 
 const { notificationRepository } = getRepositories();
@@ -7,12 +8,23 @@ const { notificationRepository } = getRepositories();
 // Notifications
 // ─────────────────────────────────────────
 
-export async function getUserNotifications(userId: string) {
-  return await notificationRepository.findNotificationsByUserId(userId);
+export async function getUserNotifications(userId: string, page?: PageParams) {
+  return await notificationRepository.pageNotificationsByUserId(
+    userId,
+    false,
+    page,
+  );
 }
 
-export async function getUnreadNotifications(userId: string) {
-  return await notificationRepository.findUnreadNotificationsByUserId(userId);
+export async function getUnreadNotifications(
+  userId: string,
+  page?: PageParams,
+) {
+  return await notificationRepository.pageNotificationsByUserId(
+    userId,
+    true,
+    page,
+  );
 }
 
 export async function getNotificationsByChannel(

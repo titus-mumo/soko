@@ -10,6 +10,7 @@ import {
   logout,
   logoutAll,
 } from "../services/auth.service";
+import { selfUser } from "../lib/views";
 
 // ─────────────────────────────────────────
 // Helpers
@@ -76,7 +77,7 @@ export async function registerWithEmailController(ctx: Context) {
   return {
     success: true,
     data: {
-      user: result.user,
+      user: selfUser(result.user),
       accessToken: result.tokens.accessToken,
     },
   };
@@ -105,7 +106,7 @@ export async function loginWithEmailController(ctx: Context) {
   return {
     success: true,
     data: {
-      user: result.user,
+      user: selfUser(result.user),
       accessToken: result.tokens.accessToken,
     },
   };
@@ -115,10 +116,18 @@ export async function loginWithEmailController(ctx: Context) {
 // Phone OTP
 // ─────────────────────────────────────────
 
+const NO_ACCOUNT_FOR_PHONE =
+  "No account uses this phone number. Sign up first, then sign in with your phone.";
+
 export async function requestOtpController(ctx: Context) {
   const body = ctx.body as { phone: string };
 
   const result = await requestOtp(body.phone);
+
+  if (result === "user_not_found") {
+    ctx.set.status = 404;
+    return { success: false, message: NO_ACCOUNT_FOR_PHONE };
+  }
 
   if (result === "failed_to_send") {
     ctx.set.status = 500;
@@ -135,7 +144,6 @@ export async function verifyOtpController(ctx: Context) {
   const body = ctx.body as {
     phone: string;
     code: string;
-    name?: string;
   };
 
   const result = await verifyOtp(body, getMeta(ctx));
@@ -163,12 +171,9 @@ export async function verifyOtpController(ctx: Context) {
     return { success: false, message: "Incorrect OTP." };
   }
 
-  if (result === "name_required") {
-    ctx.set.status = 400;
-    return {
-      success: false,
-      message: "Please provide your name to complete registration.",
-    };
+  if (result === "user_not_found") {
+    ctx.set.status = 404;
+    return { success: false, message: NO_ACCOUNT_FOR_PHONE };
   }
 
   setRefreshTokenCookie(ctx, result.tokens.refreshToken);
@@ -176,7 +181,7 @@ export async function verifyOtpController(ctx: Context) {
   return {
     success: true,
     data: {
-      user: result.user,
+      user: selfUser(result.user),
       accessToken: result.tokens.accessToken,
     },
   };
@@ -189,8 +194,9 @@ export async function verifyOtpController(ctx: Context) {
 export async function googleRedirectController(ctx: Context) {
   const url = await getGoogleRedirectUrl();
 
-  // Redirect the user to Google's consent screen.
-  ctx.set.redirect = url;
+  // Redirect the user to Google's consent screen. (`set.redirect` is a no-op
+  // in Elysia 1.4 and returned an empty 200.)
+  return ctx.redirect(url, 302);
 }
 
 export async function googleCallbackController(ctx: Context) {
@@ -217,7 +223,7 @@ export async function googleCallbackController(ctx: Context) {
   return {
     success: true,
     data: {
-      user: result.user,
+      user: selfUser(result.user),
       accessToken: result.tokens.accessToken,
     },
   };

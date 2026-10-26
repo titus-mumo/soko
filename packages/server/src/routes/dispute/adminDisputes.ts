@@ -1,4 +1,5 @@
 import Elysia, { t } from "elysia";
+import { pageParams, paged } from "../../lib/paging";
 import { adminPlugin } from "../../middleware/auth.middleware";
 import {
   getAllDisputesByStatus,
@@ -10,9 +11,10 @@ import {
 export const GetAllDisputesByStatus = new Elysia()
   .use(adminPlugin)
   .get("/admin/status/:status", async (ctx) => {
-    const { params } = ctx as any;
-    const result = await getAllDisputesByStatus(params.status);
-    return { success: true, data: result };
+    const { params, query } = ctx as any;
+    return paged(
+      await getAllDisputesByStatus(params.status, pageParams(query)),
+    );
   });
 
 export const ReviewDispute = new Elysia()

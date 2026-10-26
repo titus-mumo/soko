@@ -1,88 +1,48 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import axios from "axios";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth.store";
-import { AdminSidebar } from "./AdminSidebar";
-import { TopBar } from "./TopBar";
-import { ToastContainer } from "@/components/ui/Toast";
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+import { onAuthHydrated, restoreSession } from "@/lib/session";
+import { AppFrame } from "./AppFrame";
+import { FullPageLoader } from "./FullPageLoader";
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const setAccessToken = useAuthStore((s) => s.setAccessToken);
-  const logout = useAuthStore((s) => s.logout);
-  // Stays true until we've both waited for Zustand to rehydrate from localStorage
-  // AND completed any necessary silent token refresh.
+  const pathname = usePathname();
+  // Stays false until Zustand has rehydrated AND any silent refresh is done.
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // useAuthStore.persist.hasHydrated() is false on the very first render —
-    // we must wait for the store to finish loading from localStorage before
-    // reading user, otherwise user is always null and we redirect immediately.
-    const runAuth = () => {
-      const { user, accessToken } = useAuthStore.getState();
+    let cancelled = false;
+
+    const runAuth = async () => {
+      const user = await restoreSession();
+      if (cancelled) return;
 
       if (!user) {
-        router.replace("/login");
+        useAuthStore.getState().logout();
+        router.replace(`/login?next=${encodeURIComponent(pathname)}`);
         return;
       }
-
       if (user.role !== "admin") {
-        router.replace("/login");
+        // Signed in, just not an admin — send them to their own area.
+        router.replace("/dashboard");
         return;
       }
-
-      if (!accessToken) {
-        // User survived refresh (persisted) but token is gone — silently renew
-        axios
-          .post(`${BASE_URL}/auth/refresh`, {}, { withCredentials: true })
-          .then(({ data }) => {
-            setAccessToken(data.data.accessToken);
-            setReady(true);
-          })
-          .catch(() => {
-            logout();
-            router.replace("/login");
-          });
-        return;
-      }
-
       setReady(true);
     };
 
-    if (useAuthStore.persist.hasHydrated()) {
-      // Store already hydrated (e.g. navigating between pages)
+    const unsub = onAuthHydrated(() => {
       runAuth();
-    } else {
-      // Wait for rehydration to finish before checking auth
-      const unsub = useAuthStore.persist.onFinishHydration(runAuth);
-      return unsub;
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    });
+    return () => {
+      cancelled = true;
+      unsub();
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- runs once per mount
 
-  if (!ready) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-white dark:bg-zinc-950">
-        <span className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-200 border-t-blue-600 dark:border-zinc-700" />
-      </div>
-    );
-  }
+  if (!ready) return <FullPageLoader label="Loading admin" />;
 
-  return (
-    <div className="flex h-screen bg-zinc-50 dark:bg-zinc-950">
-      <div className="hidden md:flex">
-        <AdminSidebar />
-      </div>
-
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <TopBar />
-        <main className="flex-1 overflow-y-auto">{children}</main>
-      </div>
-
-      <ToastContainer />
-    </div>
-  );
+  return <AppFrame variant="admin">{children}</AppFrame>;
 }

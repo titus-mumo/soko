@@ -1,6 +1,6 @@
 import { db } from "src/db";
 import { productImagesTable } from "src/schema";
-import { eq, and, isNull, asc } from "drizzle-orm";
+import { eq, and, inArray, isNull, asc } from "drizzle-orm";
 
 export type ProductImage = typeof productImagesTable.$inferSelect;
 export type NewProductImage = typeof productImagesTable.$inferInsert;
@@ -58,6 +58,21 @@ export class ProductImageRepository {
       .where(
         and(
           eq(productImagesTable.productId, productId),
+          isNull(productImagesTable.deletedAt),
+        ),
+      )
+      .orderBy(asc(productImagesTable.sortOrder));
+  }
+
+  // Images for many products in one query, ordered by sortOrder.
+  async findImagesByProductIds(productIds: string[]): Promise<ProductImage[]> {
+    if (productIds.length === 0) return [];
+    return await db
+      .select()
+      .from(productImagesTable)
+      .where(
+        and(
+          inArray(productImagesTable.productId, productIds),
           isNull(productImagesTable.deletedAt),
         ),
       )

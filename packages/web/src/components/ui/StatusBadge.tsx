@@ -1,86 +1,101 @@
-import { cn } from "@/lib/utils";
-import type { OrderStatus, PaymentStatus } from "@/lib/types";
+import { Badge, type BadgeTone } from "./Badge";
+import type {
+  OrderStatus,
+  PaymentStatus,
+  ProductStatus,
+  ShipmentStatus,
+} from "@/lib/types";
 
-// pending=amber, confirmed=blue, delivered=green, cancelled=red, refunded=zinc, shipped=blue
-
-const orderColors: Record<OrderStatus, string> = {
-  pending:
-    "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900",
-  confirmed:
-    "bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900",
-  shipped:
-    "bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900",
-  delivered:
-    "bg-green-50 text-green-700 border border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-900",
-  cancelled:
-    "bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900",
-  refunded:
-    "bg-zinc-100 text-zinc-500 border border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700",
+// pending=amber, confirmed=blue, processing/hub steps=indigo, shipped=purple,
+// delivered=green, cancelled=red, refunded=zinc
+const ORDER: Record<OrderStatus, BadgeTone> = {
+  pending: "warning",
+  confirmed: "info",
+  processing: "indigo",
+  dropped_off: "indigo",
+  at_hub: "indigo",
+  shipped: "purple",
+  delivered: "success",
+  cancelled: "error",
+  refunded: "neutral",
 };
 
-const paymentColors: Record<PaymentStatus, string> = {
-  pending:
-    "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900",
-  paid: "bg-green-50 text-green-700 border border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-900",
-  failed:
-    "bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900",
-  refunded:
-    "bg-zinc-100 text-zinc-500 border border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700",
+// What buyers read: the order as a whole, with hub steps folded into
+// "Preparing".
+const ORDER_LABELS: Partial<Record<OrderStatus, string>> = {
+  processing: "Preparing",
+  dropped_off: "Preparing",
+  at_hub: "Preparing",
 };
 
-const orderLabels: Record<OrderStatus, string> = {
-  pending: "Pending",
-  confirmed: "Confirmed",
-  shipped: "Shipped",
-  delivered: "Delivered",
-  cancelled: "Cancelled",
-  refunded: "Refunded",
+// What sellers and hub staff read for a single item.
+const ITEM_LABELS: Partial<Record<OrderStatus, string>> = {
+  pending: "Awaiting payment",
+  confirmed: "To prepare",
+  processing: "Packing",
+  dropped_off: "Dropped off",
+  at_hub: "At hub",
 };
 
-const paymentLabels: Record<PaymentStatus, string> = {
-  pending: "Pending",
-  paid: "Paid",
-  failed: "Failed",
-  refunded: "Refunded",
+const PAYMENT: Record<PaymentStatus, BadgeTone> = {
+  pending: "warning",
+  paid: "success",
+  failed: "error",
+  refunded: "neutral",
 };
 
-interface OrderStatusBadgeProps {
-  status: OrderStatus;
+const SHIPMENT: Record<ShipmentStatus, BadgeTone> = {
+  awaiting_pickup: "warning",
+  in_transit: "purple",
+  out_for_delivery: "indigo",
+  delivered: "success",
+  failed: "error",
+  returned: "neutral",
+};
+
+const PRODUCT: Record<ProductStatus, BadgeTone> = {
+  draft: "neutral",
+  active: "success",
+  suspended: "error",
+  out_of_stock: "warning",
+};
+
+/** "out_for_delivery" → "Out for delivery" */
+export function statusLabel(status: string): string {
+  const text = status.replace(/_/g, " ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+interface StatusBadgeProps<T> {
+  status: T;
   className?: string;
+  size?: "sm" | "md";
 }
 
-interface PaymentStatusBadgeProps {
-  status: PaymentStatus;
-  className?: string;
+function make<T extends string>(
+  map: Record<T, BadgeTone>,
+  labels: Partial<Record<T, string>> = {},
+) {
+  return function StatusPill({ status, className, size }: StatusBadgeProps<T>) {
+    return (
+      <Badge
+        tone={map[status] ?? "neutral"}
+        dot
+        size={size}
+        className={className}
+      >
+        {labels[status] ?? statusLabel(status)}
+      </Badge>
+    );
+  };
 }
 
-export function OrderStatusBadge({ status, className }: OrderStatusBadgeProps) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium",
-        orderColors[status],
-        className,
-      )}
-    >
-      {orderLabels[status]}
-    </span>
-  );
-}
-
-export function PaymentStatusBadge({
-  status,
-  className,
-}: PaymentStatusBadgeProps) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium",
-        paymentColors[status],
-        className,
-      )}
-    >
-      {paymentLabels[status]}
-    </span>
-  );
-}
+/** An order's status, as the buyer sees it. */
+export const OrderStatusBadge = make(ORDER, ORDER_LABELS);
+/** One item's fulfilment step, as the seller / hub sees it. */
+export const ItemStatusBadge = make(ORDER, ITEM_LABELS);
+export const itemStatusLabel = (s: OrderStatus) =>
+  ITEM_LABELS[s] ?? statusLabel(s);
+export const PaymentStatusBadge = make(PAYMENT);
+export const ShipmentStatusBadge = make(SHIPMENT);
+export const ProductStatusBadge = make(PRODUCT);
