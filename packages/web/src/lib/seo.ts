@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 export const SITE_NAME = "Soko";
 export const SITE_DESCRIPTION =
-  "Soko is Kenya's marketplace — shop electronics, fashion and home goods from trusted local sellers and pay with M-Pesa.";
+  "Soko is Kenya's marketplace — shop electronics, fashion and home goods and pay with M-Pesa.";
 export const SITE_URL = (
   process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"
 ).replace(/\/$/, "");

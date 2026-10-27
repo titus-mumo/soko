@@ -3,20 +3,17 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { useAuthStore } from "@/store/auth.store";
 import { Icon, type IconName } from "@/components/ui/Icon";
 
 const LINKS: { href: string; label: string; icon: IconName }[] = [
   { href: "/profile", label: "Profile", icon: "user" },
   { href: "/profile/addresses", label: "Addresses", icon: "pin" },
   { href: "/profile/password", label: "Password", icon: "key" },
-  { href: "/profile/seller", label: "Store", icon: "store" },
 ];
 
 /** Tabs shared by the /profile/* pages. */
 export function ProfileNav() {
   const pathname = usePathname();
-  const role = useAuthStore((s) => s.user?.role);
 
   return (
     <nav
@@ -38,9 +35,7 @@ export function ProfileNav() {
             )}
           >
             <Icon name={l.icon} size={16} />
-            {l.href === "/profile/seller" && role === "buyer"
-              ? "Start selling"
-              : l.label}
+            {l.label}
           </Link>
         );
       })}

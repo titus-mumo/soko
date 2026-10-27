@@ -19,6 +19,8 @@ interface Timestamps {
 
 // ─── Users ───────────────────────────────────────────────────────────────────
 
+// "seller": accounts from before seller sign-ups closed. They shop like
+// buyers; nobody can become one any more.
 export type UserRole = "buyer" | "seller" | "admin";
 
 export interface User extends Timestamps {
@@ -54,19 +56,6 @@ export interface PublicSeller {
   totalSales: number;
 }
 
-export interface SellerProfile extends Timestamps {
-  id: string;
-  userId: string;
-  storeName: string;
-  storeSlug: string;
-  storeDescription?: string | null;
-  storeLogo?: string | null;
-  isVerified: boolean;
-  verificationDocs?: string[] | null;
-  rating?: string | null;
-  totalSales: number;
-}
-
 // ─── Categories ──────────────────────────────────────────────────────────────
 
 export interface Category extends Timestamps {
@@ -83,7 +72,7 @@ export interface Category extends Timestamps {
 export type ProductCondition = "new" | "used" | "refurbished";
 export type ProductStatus = "draft" | "active" | "suspended" | "out_of_stock";
 
-/** A listing as its seller sees it (GET /products/me…). */
+/** A listing as admins manage it (GET /products/admin…). */
 export interface Product extends Timestamps {
   id: string;
   categoryId: string;
@@ -204,9 +193,6 @@ export type OrderStatus =
   | "cancelled"
   | "refunded";
 
-/** The steps a seller can take on their own item. */
-export type SellerItemStatus = "processing" | "dropped_off" | "cancelled";
-
 export type PaymentStatus = "pending" | "paid" | "failed" | "refunded";
 
 export interface Order extends Timestamps {
@@ -229,11 +215,6 @@ export interface OrderItem {
   unitPrice: string;
   subtotal: string;
   status: OrderStatus;
-}
-
-/** A line a seller has to fulfil (no buyer details). */
-export interface SellerOrderItem extends OrderItem, Timestamps {
-  orderId: string;
 }
 
 export interface OrderDetail {

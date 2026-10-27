@@ -233,6 +233,38 @@ describe("Google OAuth", () => {
     expect(data.accessToken).toBeTruthy();
   });
 
+  test("a Google account can't be signed into with any password", async () => {
+    // Regression: an account without a password used to accept every one.
+    const res = await api("POST", "/auth/login", {
+      body: {
+        email: `google.${RUN}@test.soko.local`,
+        password: "anything-at-all",
+      },
+    });
+    expect(res.status).not.toBe(200);
+    expect(res.body.data?.accessToken).toBeUndefined();
+  });
+
+  test("a Google account can set its first password, then sign in with it", async () => {
+    const google = ok(
+      await api("GET", `/auth/google/callback?code=${GOOGLE_GOOD_CODE}`),
+    );
+    ok(
+      await api("PATCH", "/users/me/password", {
+        token: google.accessToken,
+        body: { currentPassword: "not-needed", newPassword: "N3wPassword!" },
+      }),
+    );
+    ok(
+      await api("POST", "/auth/login", {
+        body: {
+          email: `google.${RUN}@test.soko.local`,
+          password: "N3wPassword!",
+        },
+      }),
+    );
+  });
+
   test("GET /auth/google/callback fails with a bad code", async () => {
     const res = await api("GET", "/auth/google/callback?code=bad");
     expect(res.status).toBe(401);

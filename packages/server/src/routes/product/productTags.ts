@@ -1,17 +1,13 @@
 import Elysia, { t } from "elysia";
-import { sellerPlugin } from "../../middleware/auth.middleware";
+import { adminPlugin } from "../../middleware/auth.middleware";
 import { replaceProductTags } from "../../services/product.service";
 import { CONTACT_INFO_MESSAGE } from "../../lib/contact-filter";
 
-export const ReplaceProductTags = new Elysia().use(sellerPlugin).put(
+export const ReplaceProductTags = new Elysia().use(adminPlugin).put(
   "/:productId/tags",
   async (ctx) => {
-    const { userId, params, body, set } = ctx as any;
-    const result = await replaceProductTags(
-      userId,
-      params.productId,
-      body.tags,
-    );
+    const { params, body, set } = ctx as any;
+    const result = await replaceProductTags(params.productId, body.tags);
 
     if (result === "product_not_found") {
       set.status = 404;

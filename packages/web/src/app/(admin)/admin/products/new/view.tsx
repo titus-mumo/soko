@@ -30,7 +30,7 @@ export default function NewProductPage() {
     });
 
     toast.success("Listing created as a draft");
-    router.push("/seller/products");
+    router.push("/admin/products");
   };
 
   return (

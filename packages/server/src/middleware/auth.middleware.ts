@@ -54,26 +54,6 @@ export const adminPlugin = () =>
       }
     });
 
-export const sellerPlugin = () =>
-  new Elysia()
-    .derive(async ({ request }) => {
-      const payload = await getPayload(request);
-      return {
-        userId: payload?.userId ?? null,
-        role: payload?.role ?? null,
-      };
-    })
-    .onBeforeHandle(({ userId, role, set }: any) => {
-      if (!userId) {
-        set.status = 401;
-        return { success: false, message: "Access token is required." };
-      }
-      if (!["seller", "admin"].includes(role)) {
-        set.status = 403;
-        return { success: false, message: "Seller access required." };
-      }
-    });
-
 export const buyerPlugin = () =>
   new Elysia()
     .derive(async ({ request }) => {

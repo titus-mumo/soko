@@ -4,6 +4,8 @@ import { adminPlugin } from "../../middleware/auth.middleware";
 import {
   getPlatformPromotions,
   createPlatformPromotion,
+  setPromotionActive,
+  deletePromotion,
 } from "../../services/promotion.service";
 
 export const GetPlatformPromotions = new Elysia()
@@ -42,3 +44,37 @@ export const CreatePlatformPromotion = new Elysia().use(adminPlugin).post(
     }),
   },
 );
+
+const toggle = (active: boolean) =>
+  new Elysia()
+    .use(adminPlugin)
+    .patch(
+      `/admin/:promotionId/${active ? "activate" : "deactivate"}`,
+      async (ctx) => {
+        const { params, set } = ctx as any;
+        const result = await setPromotionActive(params.promotionId, active);
+        if (result === "promotion_not_found") {
+          set.status = 404;
+          return { success: false, message: "Promotion not found." };
+        }
+        return {
+          success: true,
+          message: `Promotion ${active ? "activated" : "deactivated"}.`,
+        };
+      },
+    );
+
+export const ActivatePromotion = toggle(true);
+export const DeactivatePromotion = toggle(false);
+
+export const DeletePromotion = new Elysia()
+  .use(adminPlugin)
+  .delete("/admin/:promotionId", async (ctx) => {
+    const { params, set } = ctx as any;
+    const result = await deletePromotion(params.promotionId);
+    if (result === "promotion_not_found") {
+      set.status = 404;
+      return { success: false, message: "Promotion not found." };
+    }
+    return { success: true, message: "Promotion deleted." };
+  });

@@ -36,6 +36,13 @@
       "when": 1792925205623,
       "tag": "0004_shipments_per_order",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793078425299,
+      "tag": "0005_audit_log",
+      "breakpoints": true
     }
   ]
 }

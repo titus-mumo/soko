@@ -5,10 +5,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useCartStore } from "@/store/cart.store";
-import { useMode, useSessionUser } from "@/store/auth.store";
+import { useSessionUser } from "@/store/auth.store";
 import { useNotificationStore } from "@/store/notification.store";
 import { Icon } from "@/components/ui/Icon";
-import { GUEST_TABS, MOBILE_TABS, SELLING_TABS, isActive } from "./nav";
+import { GUEST_TABS, MOBILE_TABS, isActive } from "./nav";
 
 /** A key that changes whenever `value` increases — remount to replay a CSS animation. */
 export function usePopOnIncrease(value: number) {
@@ -27,13 +27,8 @@ export function BottomNav() {
   const user = useSessionUser();
   const itemCount = useCartStore((s) => s.itemCount);
   const popKey = usePopOnIncrease(itemCount);
-  const mode = useMode();
   const unread = useNotificationStore((s) => s.unreadCount);
-  const tabs = !user
-    ? GUEST_TABS
-    : mode === "selling"
-      ? SELLING_TABS
-      : MOBILE_TABS;
+  const tabs = user ? MOBILE_TABS : GUEST_TABS;
 
   return (
     <nav

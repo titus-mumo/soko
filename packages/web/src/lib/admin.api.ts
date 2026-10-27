@@ -211,6 +211,19 @@ export async function createPlatformPromotion(
   return data.data;
 }
 
+export async function setPromotionActive(
+  id: string,
+  active: boolean,
+): Promise<void> {
+  await api.patch(
+    `/promotions/admin/${id}/${active ? "activate" : "deactivate"}`,
+  );
+}
+
+export async function deletePromotion(id: string): Promise<void> {
+  await api.delete(`/promotions/admin/${id}`);
+}
+
 // ─── Notifications ────────────────────────────────────────────────────────────
 
 export async function sendNotification(payload: {
@@ -233,12 +246,114 @@ export async function broadcastNotification(payload: {
   await api.post("/notifications/admin/broadcast", payload);
 }
 
-// ─── Sellers ──────────────────────────────────────────────────────────────────
+// ─── Audit log ────────────────────────────────────────────────────────────────
 
-export async function verifySeller(userId: string): Promise<void> {
-  await api.patch(`/sellers/admin/${userId}/verify`);
+/** One API request, as recorded in the audit log. */
+export interface AuditEntry {
+  id: string;
+  createdAt: string;
+  method: string;
+  path: string;
+  /** Query string, secrets redacted. */
+  query: string | null;
+  status: number;
+  durationMs: number;
+  userId: string | null;
+  role: string | null;
+  userName: string | null;
+  userEmail: string | null;
+  ip: string | null;
+  userAgent: string | null;
 }
 
-export async function deleteSellerProfile(userId: string): Promise<void> {
-  await api.delete(`/sellers/admin/${userId}`);
+export interface AuditFilter {
+  userId?: string;
+  method?: string;
+  /** "2xx", "4xx", "5xx" or an exact code. */
+  status?: string;
+  /** Substring of the path. */
+  path?: string;
+  /** Substring of the user's email or name. */
+  user?: string;
+  /** Exact client IP. */
+  ip?: string;
+}
+
+/** One page of the audit log, newest first. */
+export function getAuditLog(
+  filter: AuditFilter,
+  page?: PageRequest,
+): Promise<Paged<AuditEntry>> {
+  return getPage<AuditEntry>("/audit/admin", page, { ...filter });
+}
+
+// ─── Monitoring ───────────────────────────────────────────────────────────────
+
+export interface HourlyTraffic {
+  hour: string;
+  total: number;
+  ok: number;
+  refused: number;
+  denied: number;
+  rateLimited: number;
+  serverErrors: number;
+  failedSignIns: number;
+  p50Ms: number;
+  p95Ms: number;
+  clients: number;
+}
+
+export interface MonitoringAlert {
+  key: string;
+  level: "critical" | "warning";
+  title: string;
+  detail: string;
+}
+
+export interface Monitoring {
+  hours: number;
+  from: string;
+  totals: {
+    requests: number;
+    previousRequests: number;
+    ok: number;
+    refused: number;
+    denied: number;
+    rateLimited: number;
+    serverErrors: number;
+    failedSignIns: number;
+    serverErrorRate: number;
+    p95Ms: number;
+    peakHourRequests: number;
+  };
+  hourly: HourlyTraffic[];
+  routes: {
+    method: string;
+    route: string;
+    requests: number;
+    refused: number;
+    serverErrors: number;
+    p95Ms: number;
+  }[];
+  clients: {
+    ip: string;
+    requests: number;
+    refused: number;
+    denied: number;
+    notFound: number;
+    rateLimited: number;
+    failedSignIns: number;
+    users: number;
+  }[];
+  signIns: Monitoring["clients"];
+  alerts: MonitoringAlert[];
+}
+
+/** Traffic for the last `hours` hours (24, 72 or 168). */
+export async function getMonitoring(hours: number): Promise<Monitoring> {
+  const { data } = await api.get<ApiResponse<Monitoring>>(
+    "/audit/admin/stats",
+    { params: { hours } },
+  );
+  return data.data;
 }

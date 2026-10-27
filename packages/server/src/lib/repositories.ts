@@ -1,4 +1,6 @@
 import {
+  RequestLogRepository,
+  RequestLogStats,
   SearchRepository,
   CatalogueRepository,
   StockRepository,
@@ -79,6 +81,10 @@ const repositories = {
   paymentRepository: new PaymentRepository(),
   paymentLogRepository: new PaymentLogRepository(),
   errorLogRepository: new ErrorLogRepository(),
+
+  // Audit
+  requestLogRepository: new RequestLogRepository(),
+  requestLogStats: new RequestLogStats(),
 };
 
 export function getRepositories() {

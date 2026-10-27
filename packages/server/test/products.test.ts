@@ -17,19 +17,18 @@ import {
 
 const t = new Tracker();
 let admin: TestUser;
-let seller: TestSeller;
-let otherSeller: TestSeller;
+// An account from before seller sign-ups closed: no catalogue access.
+let store: TestSeller;
 let buyer: TestUser;
 let category: { id: string };
 let product: TestProduct;
 
 beforeAll(async () => {
   admin = await createAdmin(t);
-  seller = await createSeller(t);
-  otherSeller = await createSeller(t);
+  store = await createSeller(t);
   buyer = await createUser(t);
   category = await createCategory(t, admin);
-  product = await createProduct(seller, category.id);
+  product = await createProduct(t, admin, category.id);
 });
 afterAll(() => t.cleanup());
 
@@ -38,7 +37,7 @@ describe("POST /products", () => {
     const slug = `create-${RUN}`;
     const created = ok(
       await api("POST", "/products", {
-        token: seller.token,
+        token: admin.token,
         body: {
           name: "Created Product",
           slug,
@@ -57,6 +56,7 @@ describe("POST /products", () => {
       }),
       201,
     );
+    t.productIds.add(created.product.id);
     expect(created.product.status).toBe("draft");
     expect(created.variants).toHaveLength(2);
     expect(
@@ -70,7 +70,7 @@ describe("POST /products", () => {
 
   test("rejects a duplicate slug", async () => {
     const res = await api("POST", "/products", {
-      token: seller.token,
+      token: admin.token,
       body: {
         name: "Dup",
         slug: product.slug,
@@ -84,7 +84,7 @@ describe("POST /products", () => {
 
   test("rejects an unknown category", async () => {
     const res = await api("POST", "/products", {
-      token: seller.token,
+      token: admin.token,
       body: {
         name: "Lost",
         slug: `lost-${RUN}`,
@@ -98,7 +98,7 @@ describe("POST /products", () => {
 
   test("requires at least one variant", async () => {
     const res = await api("POST", "/products", {
-      token: seller.token,
+      token: admin.token,
       body: {
         name: "Empty",
         slug: `empty-${RUN}`,
@@ -110,18 +110,20 @@ describe("POST /products", () => {
     expect(res.status).toBe(400);
   });
 
-  test("is seller-only", async () => {
-    const res = await api("POST", "/products", {
-      token: buyer.token,
-      body: {
-        name: "Nope",
-        slug: `nope-${RUN}`,
-        categoryId: category.id,
-        condition: "new",
-        variants: [{ sku: `NOPE-${RUN}`, price: "1.00" }],
-      },
-    });
-    expect(res.status).toBe(403);
+  test("is admin-only: buyers and store accounts can't list", async () => {
+    for (const token of [buyer.token, store.token]) {
+      const res = await api("POST", "/products", {
+        token,
+        body: {
+          name: "Nope",
+          slug: `nope-${RUN}`,
+          categoryId: category.id,
+          condition: "new",
+          variants: [{ sku: `NOPE-${RUN}`, price: "1.00" }],
+        },
+      });
+      expect(res.status).toBe(403);
+    }
   });
 });
 
@@ -148,7 +150,9 @@ describe("public product reads", () => {
   });
 
   test("GET /products/by-category/:id lists active products only", async () => {
-    const draft = await createProduct(seller, category.id, { publish: false });
+    const draft = await createProduct(t, admin, category.id, {
+      publish: false,
+    });
     const list = ok<{ id: string }[]>(
       await api("GET", `/products/by-category/${category.id}`),
     );
@@ -188,28 +192,25 @@ describe("public product reads", () => {
   });
 });
 
-describe("GET /products/me", () => {
-  test("lists the seller's products including drafts", async () => {
-    const draft = await createProduct(seller, category.id, { publish: false });
-    const mine = ok<{ id: string }[]>(
-      await api("GET", "/products/me", { token: seller.token }),
+describe("GET /products/admin", () => {
+  test("lists every listing, drafts included", async () => {
+    const draft = await createProduct(t, admin, category.id, {
+      publish: false,
+    });
+    const all = ok<{ id: string }[]>(
+      await api("GET", "/products/admin?limit=100", { token: admin.token }),
     );
-    expect(mine.map((p) => p.id)).toEqual(
+    expect(all.map((p) => p.id)).toEqual(
       expect.arrayContaining([product.id, draft.id]),
     );
   });
 
-  test("doesn't include other sellers' products", async () => {
-    const theirs = ok<{ id: string }[]>(
-      await api("GET", "/products/me", { token: otherSeller.token }),
-    );
-    expect(theirs.map((p) => p.id)).not.toContain(product.id);
-  });
-
-  test("is seller-only", async () => {
+  test("is admin-only; the old seller listing route is gone", async () => {
+    for (const token of [buyer.token, store.token])
+      expect((await api("GET", "/products/admin", { token })).status).toBe(403);
     expect(
-      (await api("GET", "/products/me", { token: buyer.token })).status,
-    ).toBe(403);
+      (await api("GET", "/products/me", { token: store.token })).status,
+    ).toBe(404);
   });
 });
 
@@ -217,7 +218,7 @@ describe("product management", () => {
   test("PATCH /products/:id updates details", async () => {
     const p = ok(
       await api("PATCH", `/products/${product.id}`, {
-        token: seller.token,
+        token: admin.token,
         body: { description: "Updated description", condition: "refurbished" },
       }),
     );
@@ -225,18 +226,33 @@ describe("product management", () => {
     expect(p.condition).toBe("refurbished");
   });
 
-  test("PATCH /products/:id by another seller is rejected", async () => {
+  test("PATCH /products/:id by a store account is rejected", async () => {
     const res = await api("PATCH", `/products/${product.id}`, {
-      token: otherSeller.token,
+      token: store.token,
       body: { name: "Hijacked" },
     });
-    expect([403, 404]).toContain(res.status);
+    expect(res.status).toBe(403);
+  });
+
+  test("admins manage listings from any store", async () => {
+    const older = await createProduct(t, admin, category.id, { store });
+    ok(
+      await api("PATCH", `/products/${older.id}`, {
+        token: admin.token,
+        body: { name: "Renamed by Soko" },
+      }),
+    );
+    ok(
+      await api("PATCH", `/products/${older.id}/unpublish`, {
+        token: admin.token,
+      }),
+    );
   });
 
   test("unpublish → draft, publish → active", async () => {
     ok(
       await api("PATCH", `/products/${product.id}/unpublish`, {
-        token: seller.token,
+        token: admin.token,
       }),
     );
     // Drafts aren't public; the owner still sees it.
@@ -245,17 +261,21 @@ describe("product management", () => {
     );
     expect(
       ok(
-        await api("GET", `/products/me/${product.id}`, { token: seller.token }),
+        await api("GET", `/products/admin/${product.id}`, {
+          token: admin.token,
+        }),
       ).status,
     ).toBe("draft");
     ok(
       await api("PATCH", `/products/${product.id}/publish`, {
-        token: seller.token,
+        token: admin.token,
       }),
     );
     expect(
       ok(
-        await api("GET", `/products/me/${product.id}`, { token: seller.token }),
+        await api("GET", `/products/admin/${product.id}`, {
+          token: admin.token,
+        }),
       ).status,
     ).toBe("active");
     expect((await api("GET", `/products/by-slug/${product.slug}`)).status).toBe(
@@ -265,22 +285,22 @@ describe("product management", () => {
 
   test("publish of an unknown product is 404", async () => {
     const res = await api("PATCH", `/products/${missingId()}/publish`, {
-      token: seller.token,
+      token: admin.token,
     });
     expect(res.status).toBe(404);
   });
 
   test("DELETE /products/:id removes it", async () => {
-    const p = await createProduct(seller, category.id);
-    ok(await api("DELETE", `/products/${p.id}`, { token: seller.token }));
+    const p = await createProduct(t, admin, category.id);
+    ok(await api("DELETE", `/products/${p.id}`, { token: admin.token }));
     expect((await api("GET", `/products/by-slug/${p.slug}`)).status).toBe(404);
   });
 
-  test("DELETE by another seller is rejected", async () => {
+  test("DELETE by a store account is rejected", async () => {
     const res = await api("DELETE", `/products/${product.id}`, {
-      token: otherSeller.token,
+      token: store.token,
     });
-    expect([403, 404]).toContain(res.status);
+    expect(res.status).toBe(403);
     expect((await api("GET", `/products/by-slug/${product.slug}`)).status).toBe(
       200,
     );
@@ -293,7 +313,7 @@ describe("variants", () => {
   test("POST /products/:id/variants adds one", async () => {
     const v = ok(
       await api("POST", `/products/${product.id}/variants`, {
-        token: seller.token,
+        token: admin.token,
         body: {
           sku: `EXTRA-${RUN}`,
           price: "1200.00",
@@ -310,7 +330,7 @@ describe("variants", () => {
   test("PATCH /products/:id/variants/:vid updates it", async () => {
     const v = ok(
       await api("PATCH", `/products/${product.id}/variants/${variantId}`, {
-        token: seller.token,
+        token: admin.token,
         body: { price: "1100.00" },
       }),
     );
@@ -323,7 +343,7 @@ describe("variants", () => {
         "PATCH",
         `/products/${product.id}/variants/${variantId}/stock`,
         {
-          token: seller.token,
+          token: admin.token,
           body: { delta: -3 },
         },
       ),
@@ -336,7 +356,7 @@ describe("variants", () => {
       "PATCH",
       `/products/${product.id}/variants/${missingId()}`,
       {
-        token: seller.token,
+        token: admin.token,
         body: { price: "1.00" },
       },
     );
@@ -346,7 +366,7 @@ describe("variants", () => {
   test("DELETE /products/:id/variants/:vid removes it", async () => {
     ok(
       await api("DELETE", `/products/${product.id}/variants/${variantId}`, {
-        token: seller.token,
+        token: admin.token,
       }),
     );
     const variants = ok<{ id: string }[]>(
@@ -362,7 +382,7 @@ describe("images and tags", () => {
   test("POST /products/:id/images adds an image", async () => {
     const img = ok(
       await api("POST", `/products/${product.id}/images`, {
-        token: seller.token,
+        token: admin.token,
         body: { url: "https://picsum.photos/3", sortOrder: 1 },
       }),
       201,
@@ -374,7 +394,7 @@ describe("images and tags", () => {
   test("PATCH …/images/:iid/primary makes it the only primary", async () => {
     ok(
       await api("PATCH", `/products/${product.id}/images/${imageId}/primary`, {
-        token: seller.token,
+        token: admin.token,
       }),
     );
     const images = ok<{ id: string; isPrimary: boolean }[]>(
@@ -390,7 +410,7 @@ describe("images and tags", () => {
       "PATCH",
       `/products/${product.id}/images/${missingId()}/primary`,
       {
-        token: seller.token,
+        token: admin.token,
       },
     );
     expect(res.status).toBe(404);
@@ -399,7 +419,7 @@ describe("images and tags", () => {
   test("DELETE /products/:id/images/:iid removes it", async () => {
     ok(
       await api("DELETE", `/products/${product.id}/images/${imageId}`, {
-        token: seller.token,
+        token: admin.token,
       }),
     );
     const images = ok<{ id: string }[]>(
@@ -411,7 +431,7 @@ describe("images and tags", () => {
   test("PUT /products/:id/tags replaces all tags", async () => {
     ok(
       await api("PUT", `/products/${product.id}/tags`, {
-        token: seller.token,
+        token: admin.token,
         body: { tags: ["fresh", "new"] },
       }),
     );
@@ -421,7 +441,7 @@ describe("images and tags", () => {
     expect(tags.map((x) => x.tag).sort()).toEqual(["fresh", "new"]);
   });
 
-  test("image and tag writes are seller-only", async () => {
+  test("image and tag writes are admin-only", async () => {
     expect(
       (
         await api("POST", `/products/${product.id}/images`, {
@@ -463,7 +483,7 @@ describe("keeping deals on Soko", () => {
   ] as const) {
     test(`POST /products rejects ${what}`, async () => {
       const res = await api("POST", "/products", {
-        token: seller.token,
+        token: admin.token,
         body: listing(field),
       });
       expect(res.status).toBe(400);
@@ -472,34 +492,35 @@ describe("keeping deals on Soko", () => {
 
   test("ordinary listings still go through", async () => {
     const res = await api("POST", "/products", {
-      token: seller.token,
+      token: admin.token,
       body: listing({ description: "55 inch 4K TV, 2 year warranty, 120Hz" }),
     });
     expect(res.status).toBe(201);
+    t.productIds.add(res.body.data.product.id);
   });
 
   test("PATCH /products/:id rejects contact details", async () => {
     const res = await api("PATCH", `/products/${product.id}`, {
-      token: seller.token,
+      token: admin.token,
       body: { description: "DM me on instagram" },
     });
     expect(res.status).toBe(400);
   });
 
-  test("PUT /products/:id/tags is owner-only and filtered", async () => {
+  test("PUT /products/:id/tags is admin-only and filtered", async () => {
     const theirs = await api("PUT", `/products/${product.id}/tags`, {
-      token: otherSeller.token,
+      token: store.token,
       body: { tags: ["hijacked"] },
     });
-    expect(theirs.status).toBe(404);
+    expect(theirs.status).toBe(403);
     const contact = await api("PUT", `/products/${product.id}/tags`, {
-      token: seller.token,
+      token: admin.token,
       body: { tags: ["call 0712345678"] },
     });
     expect(contact.status).toBe(400);
     ok(
       await api("PUT", `/products/${product.id}/tags`, {
-        token: seller.token,
+        token: admin.token,
         body: { tags: ["phones", "audio"] },
       }),
     );

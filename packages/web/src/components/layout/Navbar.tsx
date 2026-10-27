@@ -23,8 +23,6 @@ function accountLinks(user: User): UserMenuLink[] {
   ];
   if (user.role === "admin")
     links.push({ href: "/admin", label: "Dashboard", icon: "grid" });
-  else if (user.role === "seller")
-    links.push({ href: "/dashboard", label: "Dashboard", icon: "grid" });
   return links;
 }
 
@@ -125,7 +123,7 @@ export function Navbar() {
                   <ButtonLink href="/login" variant="ghost">
                     Sign in
                   </ButtonLink>
-                  <ButtonLink href="/register">Start selling</ButtonLink>
+                  <ButtonLink href="/register">Create account</ButtonLink>
                 </div>
               </>
             )}
@@ -264,7 +262,7 @@ function MobileSheet({
               Sign in
             </ButtonLink>
             <ButtonLink href="/register" size="lg">
-              Start selling
+              Create account
             </ButtonLink>
           </div>
         )}

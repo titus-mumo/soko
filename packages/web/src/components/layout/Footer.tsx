@@ -11,14 +11,6 @@ const COLUMNS: { title: string; links: { href: string; label: string }[] }[] = [
     ],
   },
   {
-    title: "Sell",
-    links: [
-      { href: "/register", label: "Become a seller" },
-      { href: "/dashboard", label: "Seller dashboard" },
-      { href: "/seller/products/new", label: "List a product" },
-    ],
-  },
-  {
     title: "Help",
     links: [
       { href: "/delivery", label: "Delivery zones and fees" },
@@ -41,8 +33,8 @@ export function Footer() {
             Soko
           </Link>
           <p className="mt-3 max-w-xs text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-            Kenya&apos;s marketplace. Buy from local sellers, pay with M-Pesa,
-            get it delivered.
+            Kenya&apos;s marketplace. Shop with confidence, pay with M-Pesa, get
+            it delivered.
           </p>
           <p className="mt-4 text-xs text-zinc-500">© {year} Soko</p>
         </div>

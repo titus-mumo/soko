@@ -2,12 +2,14 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import {
   api,
   createMarket,
+  createProduct,
+  createSeller,
   createUser,
+  type Market,
   missingId,
   ok,
-  Tracker,
-  type Market,
   type TestUser,
+  Tracker,
 } from "./helpers";
 
 const t = new Tracker();
@@ -76,23 +78,14 @@ describe("cart", () => {
     expect(res.status).toBe(400);
   });
 
-  test("POST /cart refuses a seller's own listing", async () => {
+  test("POST /cart refuses an older store's account its own listing", async () => {
+    const store = await createSeller(t);
+    const own = await createProduct(t, m.admin, m.category.id, { store });
     const res = await api("POST", "/cart", {
-      token: m.seller.token,
-      body: { productVariantId: m.product.variantId, quantity: 1 },
+      token: store.token,
+      body: { productVariantId: own.variantId, quantity: 1 },
     });
     expect(res.status).toBe(403);
-  });
-
-  test("POST /cart lets a seller buy from another store", async () => {
-    const other = await createMarket(t);
-    ok(
-      await api("POST", "/cart", {
-        token: m.seller.token,
-        body: { productVariantId: other.product.variantId, quantity: 1 },
-      }),
-      201,
-    );
   });
 
   test("POST /cart is 404 for an unknown variant", async () => {

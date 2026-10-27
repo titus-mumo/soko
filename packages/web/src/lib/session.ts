@@ -49,9 +49,8 @@ export function onAuthHydrated(fn: () => void): () => void {
  */
 export function postLoginPath(role: string): string {
   // Buyers land on the home page (shown with the sidebar once signed in);
-  // sellers on their dashboard; admins in their own area.
-  const home =
-    role === "admin" ? "/admin" : role === "seller" ? "/dashboard" : "/";
+  // admins in their own area.
+  const home = role === "admin" ? "/admin" : "/";
   if (typeof window === "undefined") return home;
   const next = new URLSearchParams(window.location.search).get("next");
   if (!next || !next.startsWith("/") || next.startsWith("//")) return home;

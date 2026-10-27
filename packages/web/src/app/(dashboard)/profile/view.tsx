@@ -158,17 +158,9 @@ export default function ProfilePage() {
                 {profile?.email ?? profile?.phone}
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <Badge
-                  tone={
-                    profile?.role === "seller"
-                      ? "brand"
-                      : profile?.role === "admin"
-                        ? "purple"
-                        : "neutral"
-                  }
-                >
-                  <span className="capitalize">{profile?.role}</span>
-                </Badge>
+                {profile?.role === "admin" && (
+                  <Badge tone="purple">Admin</Badge>
+                )}
                 {profile?.isVerified && (
                   <Badge tone="success">
                     <Icon name="shield" size={12} />

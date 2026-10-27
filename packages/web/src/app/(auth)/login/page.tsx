@@ -3,7 +3,7 @@ import { LoginForm } from "@/components/auth/LoginForm";
 
 export const metadata = pageMetadata({
   title: "Sign in",
-  description: "Sign in to Soko to shop, track orders and manage your store.",
+  description: "Sign in to Soko to shop and track your orders.",
   path: "/login",
 });
 

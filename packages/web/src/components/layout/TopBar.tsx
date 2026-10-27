@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { ButtonLink, IconButton } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
-import { useMode, useSessionUser } from "@/store/auth.store";
+import { useSessionUser } from "@/store/auth.store";
 import { useCartStore } from "@/store/cart.store";
 import { useNotificationStore } from "@/store/notification.store";
 import { cn } from "@/lib/utils";
@@ -20,9 +20,8 @@ export function TopBar({ onOpenMenu }: { onOpenMenu?: () => void }) {
   const user = useSessionUser();
   const unread = useNotificationStore((s) => s.unreadCount);
   const cartCount = useCartStore((s) => s.itemCount);
-  const mode = useMode();
   const isAdmin = pathname.startsWith("/admin");
-  const home = isAdmin ? "/admin" : mode === "selling" ? "/dashboard" : "/";
+  const home = isAdmin ? "/admin" : "/";
   const [mobileSearch, setMobileSearch] = useState(false);
 
   // Close the phone search row after navigating (e.g. submitting a search).
@@ -93,7 +92,7 @@ export function TopBar({ onOpenMenu }: { onOpenMenu?: () => void }) {
                   )}
                 </Link>
               )}
-              {!isAdmin && mode === "buying" && (
+              {!isAdmin && (
                 <Link
                   href="/cart"
                   className="tap-target relative flex h-9 w-9 items-center justify-center rounded-lg text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"

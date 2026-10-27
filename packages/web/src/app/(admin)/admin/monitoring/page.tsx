@@ -2,9 +2,9 @@ import { pageMetadata } from "@/lib/seo";
 import View from "./view";
 
 export const metadata = pageMetadata({
-  title: "New listing",
-  description: "Add a product to your store.",
-  path: "/seller/products/new",
+  title: "Monitoring",
+  description: "Requests per hour, errors, latency and alerts.",
+  path: "/admin/monitoring",
   noIndex: true,
 });
 

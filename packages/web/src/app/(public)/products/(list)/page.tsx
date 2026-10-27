@@ -4,7 +4,7 @@ import View from "./view";
 export const metadata = pageMetadata({
   title: "Shop all products",
   description:
-    "Browse phones, electronics, fashion and home goods from trusted Kenyan sellers. Pay with M-Pesa, delivered across Kenya.",
+    "Browse phones, electronics, fashion and home goods. Pay with M-Pesa, delivered across Kenya.",
   path: "/products",
 });
 

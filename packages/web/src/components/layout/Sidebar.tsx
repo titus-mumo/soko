@@ -1,20 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useNotificationStore } from "@/store/notification.store";
 import { useCartStore } from "@/store/cart.store";
-import {
-  canSell,
-  useAuthStore,
-  useMode,
-  useSessionUser,
-  type Mode,
-} from "@/store/auth.store";
+import { useSessionUser } from "@/store/auth.store";
 import { Badge } from "@/components/ui/Badge";
 import { IconButton } from "@/components/ui/Button";
-import { Icon, type IconName } from "@/components/ui/Icon";
+import { Icon } from "@/components/ui/Icon";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { Avatar } from "./Avatar";
 import { Wordmark } from "./Wordmark";
@@ -22,17 +16,10 @@ import { useSignOut } from "./useSignOut";
 import {
   ADMIN_NAV,
   BUYING_NAV,
-  SELLING_NAV,
   isActive,
   type NavItem,
   type NavSection,
 } from "./nav";
-
-const ROLE_TONE = {
-  admin: "error",
-  seller: "brand",
-  buyer: "neutral",
-} as const;
 
 function CountPill({
   count,
@@ -119,81 +106,9 @@ function NavLink({
   );
 }
 
-const MODES: { mode: Mode; label: string; icon: IconName; home: string }[] = [
-  { mode: "buying", label: "Shopping", icon: "bag", home: "/" },
-  { mode: "selling", label: "Selling", icon: "store", home: "/dashboard" },
-];
-
-/** Shopping / Selling toggle for sellers. */
-function ModeSwitcher({
-  collapsed,
-  onNavigate,
-}: {
-  collapsed: boolean;
-  onNavigate?: () => void;
-}) {
-  const mode = useMode();
-  const setMode = useAuthStore((s) => s.setMode);
-  const router = useRouter();
-
-  const choose = (next: (typeof MODES)[number]) => {
-    if (next.mode === mode) return;
-    setMode(next.mode);
-    onNavigate?.();
-    router.push(next.home);
-  };
-
-  return (
-    <div
-      role="radiogroup"
-      aria-label="Mode"
-      className={cn(
-        "rounded-full bg-zinc-100 p-1 dark:bg-zinc-800/80",
-        collapsed
-          ? "mx-auto flex w-10 flex-col gap-1"
-          : "grid grid-cols-2 gap-1",
-      )}
-    >
-      {MODES.map((m) => {
-        const active = m.mode === mode;
-        return (
-          <Tooltip
-            key={m.mode}
-            label={m.label}
-            side="right"
-            disabled={!collapsed}
-            className="flex"
-          >
-            <button
-              type="button"
-              role="radio"
-              aria-checked={active}
-              aria-label={collapsed ? `${m.label} mode` : undefined}
-              onClick={() => choose(m)}
-              className={cn(
-                "flex h-8 w-full items-center justify-center gap-1.5 rounded-full text-xs font-medium transition-colors duration-150",
-                active
-                  ? "bg-brand-600 text-white shadow-sm"
-                  : "text-zinc-500 hover:text-zinc-900 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100",
-              )}
-            >
-              <Icon
-                name={m.icon}
-                size={collapsed ? 16 : 14}
-                strokeWidth={1.75}
-              />
-              {!collapsed && m.label}
-            </button>
-          </Tooltip>
-        );
-      })}
-    </div>
-  );
-}
-
 /**
  * Sidebar contents — the desktop rail (expandable/collapsible) and the
- * mobile drawer. Navigation follows the current mode.
+ * mobile drawer.
  */
 export function Sidebar({
   variant = "app",
@@ -217,15 +132,9 @@ export function Sidebar({
   const unreadCount = useNotificationStore((s) => s.unreadCount);
   const itemCount = useCartStore((s) => s.itemCount);
   const user = useSessionUser();
-  const mode = useMode();
   const { signOut, signingOut } = useSignOut();
 
-  const sections: NavSection[] =
-    variant === "admin"
-      ? ADMIN_NAV
-      : mode === "selling"
-        ? SELLING_NAV
-        : BUYING_NAV;
+  const sections: NavSection[] = variant === "admin" ? ADMIN_NAV : BUYING_NAV;
 
   const countFor = (item: NavItem) =>
     item.badge === "cart"
@@ -234,9 +143,7 @@ export function Sidebar({
         ? unreadCount
         : undefined;
 
-  const role = (user?.role ?? "buyer") as keyof typeof ROLE_TONE;
-  const home =
-    variant === "admin" ? "/admin" : mode === "selling" ? "/dashboard" : "/";
+  const home = variant === "admin" ? "/admin" : "/";
 
   return (
     <aside
@@ -326,12 +233,6 @@ export function Sidebar({
         ))}
       </nav>
 
-      {variant === "app" && canSell(user) && (
-        <div className="px-3 pb-3">
-          <ModeSwitcher collapsed={collapsed} onNavigate={onNavigate} />
-        </div>
-      )}
-
       {user && (
         <div className="border-t border-zinc-200 p-3 dark:border-zinc-800">
           {collapsed ? (
@@ -363,13 +264,11 @@ export function Sidebar({
                 <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
                   {user.name ?? user.email ?? user.phone}
                 </p>
-                <Badge
-                  tone={ROLE_TONE[role] ?? "neutral"}
-                  size="sm"
-                  className="mt-0.5 capitalize"
-                >
-                  {role}
-                </Badge>
+                {user.role === "admin" && (
+                  <Badge tone="error" size="sm" className="mt-0.5">
+                    Admin
+                  </Badge>
+                )}
               </div>
               <Tooltip label="Sign out" side="top">
                 <IconButton

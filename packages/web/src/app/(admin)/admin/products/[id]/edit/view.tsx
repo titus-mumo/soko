@@ -5,7 +5,7 @@ import { Icon } from "@/components/ui/Icon";
 import { useParams, useRouter } from "next/navigation";
 import { ProductForm } from "@/components/products/ProductForm";
 import {
-  getMyProduct,
+  getAdminProduct,
   updateProduct,
   addVariant,
   updateVariant,
@@ -206,8 +206,8 @@ export default function EditProductPage() {
 
   const fetchProduct = useCallback(async () => {
     try {
-      // One request; throws (404) if the listing isn't this seller's.
-      setProduct(await getMyProduct(id));
+      // One request; throws (404) for an unknown listing.
+      setProduct(await getAdminProduct(id));
     } catch {
       setProduct(null);
     } finally {
@@ -249,7 +249,7 @@ export default function EditProductPage() {
     }
 
     toast.success("Listing updated");
-    router.push("/seller/products");
+    router.push("/admin/products");
   };
 
   if (loading) {
@@ -270,7 +270,7 @@ export default function EditProductPage() {
           title="Listing not found"
           description="It may have been deleted, or it belongs to another store."
           action={
-            <ButtonLink href="/seller/products" variant="secondary" size="sm">
+            <ButtonLink href="/admin/products" variant="secondary" size="sm">
               Back to listings
             </ButtonLink>
           }
@@ -283,7 +283,7 @@ export default function EditProductPage() {
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
         <button
-          onClick={() => router.push("/seller/products")}
+          onClick={() => router.push("/admin/products")}
           className="mb-4 flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
         >
           <Icon name="chevron-left" size={14} />

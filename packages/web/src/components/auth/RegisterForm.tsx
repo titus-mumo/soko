@@ -54,7 +54,7 @@ export function RegisterForm() {
     <div className="w-full max-w-sm animate-fade-in">
       <AuthHeading
         title="Create your account"
-        subtitle="Shop from sellers across Kenya and pay with M-Pesa."
+        subtitle="Shop across Kenya and pay with M-Pesa."
       />
 
       <form

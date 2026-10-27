@@ -6,7 +6,6 @@ import {
   createProduct,
   ok,
   placeOrder,
-  placePaidOrder,
   Tracker,
   type Market,
 } from "./helpers";
@@ -24,7 +23,7 @@ beforeAll(async () => {
   // A category of our own, so the catalogue tests see only these.
   category = await createCategory(t, m.admin);
   for (const price of prices)
-    await createProduct(m.seller, category.id, { price });
+    await createProduct(t, m.admin, category.id, { price });
 });
 afterAll(() => t.cleanup());
 
@@ -189,74 +188,55 @@ describe("paged account lists", () => {
     expect(new Set(all.map((n) => n.id)).size).toBe(all.length);
   });
 
-  test("GET /orders/seller/items pages", async () => {
-    const { all } = await walk<{ id: string }>(
-      "/orders/seller/items?limit=2",
-      m.seller.token,
-    );
-    expect(all.length).toBeGreaterThanOrEqual(3);
-  });
-
-  test("GET /products/me pages and includes units sold", async () => {
+  test("GET /products/admin pages every listing, with units sold", async () => {
     const { all } = await walk<{ id: string; unitsSold: number }>(
-      "/products/me?limit=2",
-      m.seller.token,
+      "/products/admin?limit=50",
+      m.admin.token,
     );
-    expect(all.length).toBeGreaterThanOrEqual(prices.length + 1);
+    expect(all.map((p) => p.id)).toContain(m.product.id);
     expect(all.every((p) => typeof p.unitsSold === "number")).toBe(true);
   });
 
-  test("GET /products/me items carry their variants and images", async () => {
-    const page = await api("GET", "/products/me?limit=100", {
-      token: m.seller.token,
+  test("GET /products/admin items carry their variants and images", async () => {
+    const page = await api("GET", "/products/admin?limit=100", {
+      token: m.admin.token,
     });
-    const mine = page.body.data.find(
+    const listing = page.body.data.find(
       (p: { id: string }) => p.id === m.product.id,
     );
-    expect(mine.variants.map((v: { id: string }) => v.id)).toContain(
+    expect(listing.variants.map((v: { id: string }) => v.id)).toContain(
       m.product.variantId,
     );
-    expect(Array.isArray(mine.images)).toBe(true);
+    expect(Array.isArray(listing.images)).toBe(true);
   });
 
-  test("GET /products/me/:id is the seller's own listing only", async () => {
-    const mine = ok<{ id: string }>(
-      await api("GET", `/products/me/${m.product.id}`, {
-        token: m.seller.token,
+  test("GET /products/admin?status= filters; /admin/counts counts", async () => {
+    const draft = await createProduct(t, m.admin, category.id, {
+      publish: false,
+    });
+    const { all } = await walk<{ id: string; status: string }>(
+      "/products/admin?status=draft&limit=100",
+      m.admin.token,
+    );
+    expect(all.map((p) => p.id)).toContain(draft.id);
+    expect(all.every((p) => p.status === "draft")).toBe(true);
+    const counts = ok<Record<string, number>>(
+      await api("GET", "/products/admin/counts", { token: m.admin.token }),
+    );
+    expect(counts.draft).toBeGreaterThanOrEqual(1);
+    expect(counts.active).toBeGreaterThanOrEqual(prices.length + 1);
+  });
+
+  test("GET /products/admin/:id is any listing, admin-only", async () => {
+    const listing = ok<{ id: string }>(
+      await api("GET", `/products/admin/${m.product.id}`, {
+        token: m.admin.token,
       }),
     );
-    expect(mine.id).toBe(m.product.id);
-    const other = await createMarket(t);
-    const res = await api("GET", `/products/me/${m.product.id}`, {
-      token: other.seller.token,
-    });
-    expect(res.status).toBe(404);
-  });
-});
-
-describe("GET /orders/seller/stats", () => {
-  test("computes the dashboard numbers in the database", async () => {
-    await placePaidOrder(m);
-    const s = ok<{
-      countsByStatus: Record<string, number>;
-      ordersToday: number;
-      toDropOff: number;
-      daily: number[];
-      revenue: string;
-      listings: { active: number; total: number };
-    }>(await api("GET", "/orders/seller/stats", { token: m.seller.token }));
-    expect(s.countsByStatus.confirmed).toBeGreaterThanOrEqual(1);
-    expect(s.toDropOff).toBeGreaterThanOrEqual(1);
-    expect(s.ordersToday).toBeGreaterThanOrEqual(1);
-    expect(s.daily).toHaveLength(14);
-    expect(s.daily[13]).toBeGreaterThan(0);
-    expect(s.listings.active).toBeGreaterThanOrEqual(prices.length + 1);
-  });
-
-  test("is seller-only", async () => {
-    expect(
-      (await api("GET", "/orders/seller/stats", { token: m.buyer.token }))
-        .status,
-    ).toBe(403);
+    expect(listing.id).toBe(m.product.id);
+    for (const token of [m.buyer.token, undefined])
+      expect([401, 403]).toContain(
+        (await api("GET", `/products/admin/${m.product.id}`, { token })).status,
+      );
   });
 });

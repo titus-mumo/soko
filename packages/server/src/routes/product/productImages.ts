@@ -1,12 +1,12 @@
 import Elysia, { t } from "elysia";
-import { sellerPlugin } from "../../middleware/auth.middleware";
+import { adminPlugin } from "../../middleware/auth.middleware";
 import {
   addProductImage,
   setPrimaryImage,
   deleteProductImage,
 } from "../../services/product.service";
 
-export const AddProductImage = new Elysia().use(sellerPlugin).post(
+export const AddProductImage = new Elysia().use(adminPlugin).post(
   "/:productId/images",
   async (ctx) => {
     const { params, body, set } = ctx as any;
@@ -31,7 +31,7 @@ export const AddProductImage = new Elysia().use(sellerPlugin).post(
 );
 
 export const SetPrimaryImage = new Elysia()
-  .use(sellerPlugin)
+  .use(adminPlugin)
   .patch("/:productId/images/:imageId/primary", async (ctx) => {
     const { params, set } = ctx as any;
     const result = await setPrimaryImage(params.productId, params.imageId);
@@ -45,7 +45,7 @@ export const SetPrimaryImage = new Elysia()
   });
 
 export const DeleteProductImage = new Elysia()
-  .use(sellerPlugin)
+  .use(adminPlugin)
   .delete("/:productId/images/:imageId", async (ctx) => {
     const { params, set } = ctx as any;
     const result = await deleteProductImage(params.productId, params.imageId);

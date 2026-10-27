@@ -236,10 +236,19 @@ describe("admin: users", () => {
     ok(
       await api("PATCH", `/users/admin/${u.id}/role`, {
         token: admin.token,
-        body: { role: "seller" },
+        body: { role: "admin" },
       }),
     );
-    expect((await login(u.email)).user.role).toBe("seller");
+    expect((await login(u.email)).user.role).toBe("admin");
+  });
+
+  test("PATCH /users/admin/:id/role can't create sellers", async () => {
+    const u = await createUser(t);
+    const res = await api("PATCH", `/users/admin/${u.id}/role`, {
+      token: admin.token,
+      body: { role: "seller" },
+    });
+    expect(res.status).toBe(400);
   });
 
   test("PATCH /users/admin/:id/role rejects unknown roles", async () => {

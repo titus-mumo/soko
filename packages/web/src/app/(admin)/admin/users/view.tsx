@@ -54,15 +54,15 @@ export default function AdminUsersPage() {
     }
   };
 
-  const handleRole = (u: User) => {
-    const role: UserRole = u.role === "seller" ? "buyer" : "seller";
-    return run(
+  // Seller sign-ups are closed: an older store account can only be turned
+  // into a regular shopper.
+  const handleMakeBuyer = (u: User) =>
+    run(
       u.id,
-      () => updateUserRole(u.id, role),
-      `${u.name} is now a ${role}`,
+      () => updateUserRole(u.id, "buyer"),
+      `${u.name} is now a buyer`,
       "Failed to change role",
     );
-  };
 
   const handleVerify = (u: User) =>
     run(
@@ -167,18 +167,16 @@ export default function AdminUsersPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap justify-end gap-1.5">
-                          {u.role !== "admin" && (
+                          {u.role === "seller" && (
                             <Button
                               size="sm"
                               variant="secondary"
                               isLoading={busy === u.id && !confirmDelete}
                               disabled={busy === u.id}
-                              onClick={() => handleRole(u)}
-                              aria-label={`Make ${u.name} a ${u.role === "seller" ? "buyer" : "seller"}`}
+                              onClick={() => handleMakeBuyer(u)}
+                              aria-label={`Make ${u.name} a buyer`}
                             >
-                              {u.role === "seller"
-                                ? "Make buyer"
-                                : "Make seller"}
+                              Make buyer
                             </Button>
                           )}
                           {!u.isVerified && (

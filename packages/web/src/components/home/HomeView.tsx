@@ -7,7 +7,6 @@ import {
 import { SITE_NAME, absoluteUrl } from "@/lib/seo";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { HeroCarousel } from "@/components/home/HeroCarousel";
-import { SellerCta } from "@/components/home/SellerCta";
 import { categoryIcon } from "@/components/home/categoryIcon";
 import {
   ProductCard,
@@ -127,7 +126,7 @@ export async function HomeView({ hero }: { hero: boolean }) {
           <SectionHeading
             id="featured-heading"
             title="Featured on Soko"
-            subtitle="The latest listings from sellers across Kenya"
+            subtitle="The latest additions to Soko"
             href="/products"
             linkLabel="Browse all"
           />
@@ -189,8 +188,6 @@ export async function HomeView({ hero }: { hero: boolean }) {
             </ul>
           </section>
         )}
-
-        <SellerCta />
 
         {/* Keeps the catalogue reachable even when there are few listings. */}
         <p className="text-center">

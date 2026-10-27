@@ -6,7 +6,6 @@ import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/auth.store";
 import { useCartStore } from "@/store/cart.store";
 import { useNotificationStore } from "@/store/notification.store";
-import { useSellerStore } from "@/store/seller.store";
 
 /** Signs out server-side and clears every client store. */
 export function useSignOut() {
@@ -23,7 +22,6 @@ export function useSignOut() {
       useAuthStore.getState().logout();
       useCartStore.getState().clearCart();
       useNotificationStore.getState().clear();
-      useSellerStore.getState().setSellerProfile(null);
       // Back to the public home page. Drop pages cached while signed in first
       // (they used the app layout); the session hint is already cleared, so
       // "/" now renders the guest version.

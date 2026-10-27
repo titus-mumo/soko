@@ -52,7 +52,7 @@ const cartLine = async (user: TestUser, variantId: string) => {
 
 /** A fresh product with `stock` units and two fresh shoppers. */
 async function scene(stock: number) {
-  const product = await createProduct(m.seller, m.category.id, { stock });
+  const product = await createProduct(t, m.admin, m.category.id, { stock });
   const a = await createUser(t, "buyer");
   const b = await createUser(t, "buyer");
   return { product, a, b };
@@ -187,7 +187,9 @@ describe("checkout", () => {
     const { variants } = ok<{
       variants: { id: string; stockQuantity: number }[];
     }>(
-      await api("GET", `/products/me/${product.id}`, { token: m.seller.token }),
+      await api("GET", `/products/admin/${product.id}`, {
+        token: m.admin.token,
+      }),
     );
     expect(
       variants.find((v) => v.id === product.variantId)!.stockQuantity,

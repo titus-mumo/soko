@@ -1,11 +1,4 @@
 import Elysia from "elysia";
-import { OnboardSeller } from "./onboardSeller";
-import {
-  GetSellerProfile,
-  UpdateSellerProfile,
-  UploadVerificationDoc,
-  DeleteSellerProfile,
-} from "./sellerProfile";
 import {
   VerifySeller,
   UpdateSellerRating,
@@ -14,15 +7,8 @@ import {
 
 export const sellerRoutes = new Elysia().group("/sellers", (app) =>
   app
-    // Public
-    // Onboarding
-    .use(OnboardSeller)
-    // Seller profile management
-    .use(GetSellerProfile)
-    .use(UpdateSellerProfile)
-    .use(UploadVerificationDoc)
-    .use(DeleteSellerProfile)
-    // Admin
+    // Admin only: stores can no longer be created or self-managed — Soko
+    // runs the catalogue (see routes/product).
     .use(VerifySeller)
     .use(UpdateSellerRating)
     .use(AdminDeleteSellerProfile)

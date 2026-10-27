@@ -10,7 +10,7 @@ import { JsonLd, breadcrumbJsonLd } from "@/components/seo/JsonLd";
 export const metadata = pageMetadata({
   title: "Shop by category",
   description:
-    "Browse Soko by category — phones, audio, fashion, home and kitchen from sellers across Kenya.",
+    "Browse Soko by category — phones, audio, fashion, home and kitchen, delivered across Kenya.",
   path: "/categories",
 });
 

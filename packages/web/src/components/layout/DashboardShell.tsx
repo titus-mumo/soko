@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { adoptGuestCart } from "@/lib/guest-cart";
-import { useSyncSellerProfile } from "@/store/seller.store";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth.store";
 import { onAuthHydrated, restoreSession } from "@/lib/session";
@@ -61,9 +60,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       unsub();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- runs once per mount
-
-  // Seller store id, so product cards can recognise own listings.
-  useSyncSellerProfile(ready);
 
   // Populate the nav badges once authenticated, and keep unread fresh.
   useEffect(() => {

@@ -10,6 +10,7 @@ import {
   decimal,
   pgSchema,
   jsonb,
+  index,
 } from "drizzle-orm/pg-core";
 
 // ─────────────────────────────────────────
@@ -464,6 +465,37 @@ export const otpTable = pgTable("otps", {
   isUsed: boolean("is_used").notNull().default(false),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 });
+
+// ─────────────────────────────────────────
+// AUDIT
+// ─────────────────────────────────────────
+// One row per API request, for the admin audit log. Append-only; no foreign
+// key to users, so entries outlive deleted accounts and inserts stay cheap.
+// Bodies are never stored.
+export const requestLogsTable = pgTable(
+  "request_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    method: varchar("method", { length: 10 }).notNull(),
+    path: text("path").notNull(),
+    // Query string with sensitive values redacted.
+    query: text("query"),
+    status: integer("status").notNull(),
+    durationMs: integer("duration_ms").notNull(),
+    userId: uuid("user_id"),
+    role: varchar("role", { length: 20 }),
+    ip: varchar("ip", { length: 64 }),
+    userAgent: text("user_agent"),
+  },
+  (t) => [
+    index("request_logs_created_idx").on(t.createdAt, t.id),
+    index("request_logs_user_idx").on(t.userId, t.createdAt),
+    index("request_logs_status_idx").on(t.status, t.createdAt),
+  ],
+);
 
 // ─────────────────────────────────────────
 // Inferred Types - I moved these to the files in which they are used

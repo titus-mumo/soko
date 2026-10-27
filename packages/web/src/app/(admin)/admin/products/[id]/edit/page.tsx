@@ -11,7 +11,7 @@ export async function generateMetadata({
   return pageMetadata({
     title: "Edit listing",
     description: "Update a product listing.",
-    path: `/seller/products/${id}/edit`,
+    path: `/admin/products/${id}/edit`,
     noIndex: true,
   });
 }

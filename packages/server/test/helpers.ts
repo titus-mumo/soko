@@ -102,6 +102,9 @@ export class Tracker {
   categoryIds = new Set<string>();
   zoneIds = new Set<string>();
   promoCodes = new Set<string>();
+  // Products live in the shared house store (not a tracked user's), so
+  // they're tracked themselves.
+  productIds = new Set<string>();
 
   async cleanup() {
     const q = cleanupDb();
@@ -116,10 +119,13 @@ export class Tracker {
         .join(", ");
 
     const users = [...this.userIds];
-    if (users.length) {
-      const u = list(users);
-      // Orders block user deletion (buyer FK is RESTRICT) — remove them first,
-      // including orders placed with these users' stores.
+    const products = [...this.productIds];
+    // Orders block user and product deletion (RESTRICT) — remove them first:
+    // these users' orders, orders with these users' stores, and orders for
+    // these products.
+    const u = users.length ? list(users) : "NULL";
+    const p = products.length ? list(products) : "NULL";
+    if (users.length || products.length) {
       const orders = await q.unsafe<{ id: string }[]>(`
         select o.id from orders o
         where o.buyer_id in (${u})
@@ -127,6 +133,11 @@ export class Tracker {
              select oi.order_id from order_items oi
              join seller_profiles sp on sp.id = oi.seller_id
              where sp.user_id in (${u})
+           )
+           or o.id in (
+             select oi.order_id from order_items oi
+             join product_variants pv on pv.id = oi.product_variant_id
+             where pv.product_id in (${p})
            )`);
       if (orders.length) {
         const o = list(orders.map((r) => r.id));
@@ -134,9 +145,15 @@ export class Tracker {
         await q.unsafe(`delete from payments where order_id in (${o})`);
         await q.unsafe(`delete from orders where id in (${o})`);
       }
+    }
+    if (users.length) {
       // Cascades: addresses, stores → products/variants/images/promotions,
       // carts, reviews, disputes, notifications, refresh tokens.
       await q.unsafe(`delete from users where id in (${u})`);
+    }
+    if (products.length) {
+      // Cascades: variants (→ cart lines), images, tags, reviews.
+      await q.unsafe(`delete from products where id in (${p})`);
     }
 
     const codes = [...this.promoCodes];
@@ -220,17 +237,22 @@ export interface TestSeller extends TestUser {
   storeSlug: string;
 }
 
-/** Registers, opens a store, and refreshes to get a seller-role token. */
+/**
+ * A store from before seller sign-ups closed: there's no API to create one
+ * any more, so it's inserted directly (role seller, with its store record).
+ */
 export async function createSeller(t: Tracker): Promise<TestSeller> {
   const user = await createUser(t, "seller");
   const storeSlug = `test-store-${next()}`;
-  const onboard = await api("POST", "/sellers/onboard", {
-    token: user.token,
-    body: { storeName: `Test Store ${RUN}`, storeSlug },
+  const { sellerProfileRepository, userRepository } = getRepositories();
+  await userRepository.updateUserRole(user.id, "seller");
+  const profile = await sellerProfileRepository.insertSellerProfile({
+    userId: user.id,
+    storeName: `Test Store ${RUN}`,
+    storeSlug,
   });
-  const profile = ok<{ id: string }>(onboard, 201);
   const { accessToken } = await login(user.email);
-  return { ...user, token: accessToken, sellerId: profile.id, storeSlug };
+  return { ...user, token: accessToken, sellerId: profile!.id, storeSlug };
 }
 
 export async function createCategory(
@@ -272,17 +294,27 @@ export interface TestProduct {
   price: number;
 }
 
-/** Creates and publishes a product with one variant and an image. */
+/**
+ * An admin lists and publishes a product (one variant, one image) — it goes
+ * to the house store. Pass `store` to move it to an older store's record,
+ * for tests about orders spanning several stores.
+ */
 export async function createProduct(
-  seller: TestSeller,
+  t: Tracker,
+  admin: TestUser,
   categoryId: string,
-  opts: { price?: number; stock?: number; publish?: boolean } = {},
+  opts: {
+    price?: number;
+    stock?: number;
+    publish?: boolean;
+    store?: TestSeller;
+  } = {},
 ): Promise<TestProduct> {
   const price = opts.price ?? 1000;
   const stock = opts.stock ?? 10;
   const slug = `test-product-${next()}`;
   const res = await api("POST", "/products", {
-    token: seller.token,
+    token: admin.token,
     body: {
       name: `Test Product ${slug}`,
       slug,
@@ -301,10 +333,17 @@ export async function createProduct(
     variants: { id: string }[];
     images: { id: string }[];
   }>(res, 201);
+  t.productIds.add(created.product.id);
+  if (opts.store) {
+    await cleanupDb().unsafe(
+      `update products set seller_id = $1 where id = $2`,
+      [opts.store.sellerId, created.product.id],
+    );
+  }
   if (opts.publish !== false) {
     ok(
       await api("PATCH", `/products/${created.product.id}/publish`, {
-        token: seller.token,
+        token: admin.token,
       }),
     );
   }
@@ -327,20 +366,19 @@ export async function createAddress(user: TestUser, county: string) {
 
 export const MARKET_STOCK = 45;
 
-/** A complete marketplace: admin, seller with a live product, and a buyer. */
+/** A complete marketplace: an admin with a live product, and a buyer. */
 export async function createMarket(t: Tracker) {
   const admin = await createAdmin(t);
-  const seller = await createSeller(t);
   const buyer = await createUser(t, "buyer");
   const category = await createCategory(t, admin);
   const zone = await createZone(t, admin);
   // Enough stock for a suite's worth of orders (MARKET_STOCK < 50 so the
   // cart's over-stock checks still trip).
-  const product = await createProduct(seller, category.id, {
+  const product = await createProduct(t, admin, category.id, {
     stock: MARKET_STOCK,
   });
   const address = await createAddress(buyer, zone.county);
-  return { admin, seller, buyer, category, zone, product, address };
+  return { admin, buyer, category, zone, product, address };
 }
 
 export type Market = Awaited<ReturnType<typeof createMarket>>;
@@ -415,19 +453,13 @@ export async function placePaidOrder(m: Market, quantity = 1) {
 }
 
 /**
- * Takes a paid order all the way through the hub: seller drops off, hub
- * receives, ships, and marks it delivered. Returns the shipment id.
+ * Takes a paid order all the way through the hub: Soko receives the item,
+ * ships the order and marks it delivered. Returns the shipment id.
  */
 export async function deliverOrder(
   m: Market,
   placed: { orderId: string; orderItemId: string },
 ) {
-  ok(
-    await api("PATCH", `/orders/seller/items/${placed.orderItemId}/status`, {
-      token: m.seller.token,
-      body: { status: "dropped_off" },
-    }),
-  );
   ok(
     await api("PATCH", `/orders/admin/items/${placed.orderItemId}/received`, {
       token: m.admin.token,

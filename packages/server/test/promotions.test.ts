@@ -14,7 +14,8 @@ import {
 
 const t = new Tracker();
 let m: Market;
-let otherSeller: TestSeller;
+// An account from before seller sign-ups closed.
+let store: TestSeller;
 const code = (name: string) => {
   const c = `${name}-${RUN}`.toUpperCase();
   t.promoCodes.add(c);
@@ -23,161 +24,98 @@ const code = (name: string) => {
 
 beforeAll(async () => {
   m = await createMarket(t);
-  otherSeller = await createSeller(t);
+  store = await createSeller(t);
 });
 afterAll(() => t.cleanup());
 
-describe("seller promotions", () => {
+describe("admin promotion management", () => {
+  const SALE = code("SALE");
   let promoId: string;
-  const SAVE10 = code("SAVE10");
+  const listed = async () =>
+    ok<{ id: string; isActive: boolean }[]>(
+      await api("GET", "/promotions/admin", { token: m.admin.token }),
+    ).find((p) => p.id === promoId);
 
-  test("POST /promotions/seller creates a code", async () => {
-    const p = ok(
-      await api("POST", "/promotions/seller", {
-        token: m.seller.token,
-        body: { code: SAVE10, type: "percent", value: "10", maxUses: 5 },
+  beforeAll(async () => {
+    promoId = ok<{ id: string }>(
+      await api("POST", "/promotions/admin", {
+        token: m.admin.token,
+        body: { code: SALE, type: "percent", value: "10" },
       }),
       201,
+    ).id;
+  });
+
+  test("deactivate and activate toggle a code", async () => {
+    ok(
+      await api("PATCH", `/promotions/admin/${promoId}/deactivate`, {
+        token: m.admin.token,
+      }),
     );
-    promoId = p.id;
-    expect(p.isActive).toBe(true);
+    expect((await listed())?.isActive).toBe(false);
+    ok(
+      await api("PATCH", `/promotions/admin/${promoId}/activate`, {
+        token: m.admin.token,
+      }),
+    );
+    expect((await listed())?.isActive).toBe(true);
   });
 
   test("409 for a code that already exists", async () => {
-    const res = await api("POST", "/promotions/seller", {
-      token: otherSeller.token,
-      body: { code: SAVE10, type: "fixed", value: "50" },
+    const res = await api("POST", "/promotions/admin", {
+      token: m.admin.token,
+      body: { code: SALE, type: "fixed", value: "50" },
     });
     expect(res.status).toBe(409);
   });
 
-  test("GET /promotions/seller lists only my codes", async () => {
-    const mine = ok<{ id: string }[]>(
-      await api("GET", "/promotions/seller", { token: m.seller.token }),
-    );
-    expect(mine.map((p) => p.id)).toContain(promoId);
-    const theirs = ok<{ id: string }[]>(
-      await api("GET", "/promotions/seller", { token: otherSeller.token }),
-    );
-    expect(theirs.map((p) => p.id)).not.toContain(promoId);
-  });
-
-  test("PATCH /promotions/seller/:id updates it", async () => {
-    const p = ok(
-      await api("PATCH", `/promotions/seller/${promoId}`, {
-        token: m.seller.token,
-        body: { value: "15" },
-      }),
-    );
-    expect(Number(p.value)).toBe(15);
-  });
-
-  test("another seller can't update, toggle or delete it", async () => {
-    const res = await api("PATCH", `/promotions/seller/${promoId}`, {
-      token: otherSeller.token,
-      body: { value: "99" },
-    });
-    expect(res.status).toBe(404);
-    for (const action of ["activate", "deactivate"]) {
-      const r = await api("PATCH", `/promotions/seller/${promoId}/${action}`, {
-        token: otherSeller.token,
-      });
-      expect(r.status).toBe(404);
-    }
-    const del = await api("DELETE", `/promotions/seller/${promoId}`, {
-      token: otherSeller.token,
-    });
-    expect(del.status).toBe(404);
-
-    // Still intact for the owner.
-    const mine = ok<{ id: string; value: string; isActive: boolean }[]>(
-      await api("GET", "/promotions/seller", { token: m.seller.token }),
-    );
-    const p = mine.find((x) => x.id === promoId);
-    expect(Number(p?.value)).toBe(15);
-    expect(p?.isActive).toBe(true);
-  });
-
-  test("an expiry date can be set", async () => {
-    const p = ok(
-      await api("POST", "/promotions/seller", {
-        token: m.seller.token,
-        body: {
-          code: code("DATED"),
-          type: "fixed",
-          value: "30",
-          expiresAt: "2099-12-31",
-        },
-      }),
-      201,
-    );
-    expect(new Date(p.expiresAt).getUTCFullYear()).toBe(2099);
-  });
-
-  test("deactivate and activate toggle it", async () => {
-    ok(
-      await api("PATCH", `/promotions/seller/${promoId}/deactivate`, {
-        token: m.seller.token,
-      }),
-    );
-    let mine = ok<{ id: string; isActive: boolean }[]>(
-      await api("GET", "/promotions/seller", { token: m.seller.token }),
-    );
-    expect(mine.find((p) => p.id === promoId)?.isActive).toBe(false);
-
-    ok(
-      await api("PATCH", `/promotions/seller/${promoId}/activate`, {
-        token: m.seller.token,
-      }),
-    );
-    mine = ok(
-      await api("GET", "/promotions/seller", { token: m.seller.token }),
-    );
-    expect(mine.find((p) => p.id === promoId)?.isActive).toBe(true);
-  });
-
-  test("DELETE /promotions/seller/:id removes it", async () => {
-    const p = ok(
-      await api("POST", "/promotions/seller", {
-        token: m.seller.token,
-        body: { code: code("TEMP"), type: "fixed", value: "20" },
-      }),
-      201,
-    );
-    ok(
-      await api("DELETE", `/promotions/seller/${p.id}`, {
-        token: m.seller.token,
-      }),
-    );
-    const mine = ok<{ id: string }[]>(
-      await api("GET", "/promotions/seller", { token: m.seller.token }),
-    );
-    expect(mine.map((x) => x.id)).not.toContain(p.id);
-  });
-
   test("404s for unknown promotions", async () => {
     const id = missingId();
-    for (const path of [
-      `/promotions/seller/${id}/activate`,
-      `/promotions/seller/${id}/deactivate`,
-    ]) {
-      expect((await api("PATCH", path, { token: m.seller.token })).status).toBe(
-        404,
-      );
-    }
+    for (const action of ["activate", "deactivate"])
+      expect(
+        (
+          await api("PATCH", `/promotions/admin/${id}/${action}`, {
+            token: m.admin.token,
+          })
+        ).status,
+      ).toBe(404);
     expect(
-      (
-        await api("DELETE", `/promotions/seller/${id}`, {
-          token: m.seller.token,
-        })
-      ).status,
+      (await api("DELETE", `/promotions/admin/${id}`, { token: m.admin.token }))
+        .status,
     ).toBe(404);
   });
 
-  test("seller promotion routes are seller-only", async () => {
+  test("DELETE /promotions/admin/:id removes it", async () => {
+    const DOOMED = code("DOOMED");
+    const p = ok<{ id: string }>(
+      await api("POST", "/promotions/admin", {
+        token: m.admin.token,
+        body: { code: DOOMED, type: "fixed", value: "10" },
+      }),
+      201,
+    );
+    ok(
+      await api("DELETE", `/promotions/admin/${p.id}`, {
+        token: m.admin.token,
+      }),
+    );
+    const list = ok<{ id: string }[]>(
+      await api("GET", "/promotions/admin", { token: m.admin.token }),
+    );
+    expect(list.map((x) => x.id)).not.toContain(p.id);
+  });
+
+  test("stores can't run promotions any more", async () => {
     expect(
-      (await api("GET", "/promotions/seller", { token: m.buyer.token })).status,
-    ).toBe(403);
+      (await api("GET", "/promotions/seller", { token: store.token })).status,
+    ).toBe(404);
+    for (const [method, path] of [
+      ["PATCH", `/promotions/admin/${promoId}/deactivate`],
+      ["DELETE", `/promotions/admin/${promoId}`],
+    ])
+      expect((await api(method, path, { token: store.token })).status).toBe(
+        403,
+      );
   });
 });
 
@@ -207,24 +145,9 @@ describe("platform promotions", () => {
     expect(list.map((p) => p.code)).toContain(WELCOME);
   });
 
-  test("sellers can't modify platform codes", async () => {
-    const list = ok<{ id: string; code: string }[]>(
-      await api("GET", "/promotions/admin", { token: m.admin.token }),
-    );
-    const platform = list.find((p) => p.code === WELCOME)!;
-    const res = await api(
-      "PATCH",
-      `/promotions/seller/${platform.id}/deactivate`,
-      {
-        token: m.seller.token,
-      },
-    );
-    expect(res.status).toBe(404);
-  });
-
   test("platform promotion routes are admin-only", async () => {
     expect(
-      (await api("GET", "/promotions/admin", { token: m.seller.token })).status,
+      (await api("GET", "/promotions/admin", { token: m.buyer.token })).status,
     ).toBe(403);
   });
 
@@ -287,7 +210,7 @@ describe("platform promotions", () => {
   test("apply is 404 for another buyer's order", async () => {
     const { orderId } = await placeOrder(m);
     const res = await api("POST", "/promotions/me/apply", {
-      token: m.seller.token,
+      token: store.token,
       body: { orderId, code: WELCOME },
     });
     expect(res.status).toBe(404);

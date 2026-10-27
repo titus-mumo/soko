@@ -45,11 +45,8 @@ export const UpdateUserRole = new Elysia().use(adminPlugin).patch(
   },
   {
     body: t.Object({
-      role: t.Union([
-        t.Literal("buyer"),
-        t.Literal("seller"),
-        t.Literal("admin"),
-      ]),
+      // No "seller": stores can't be created any more.
+      role: t.Union([t.Literal("buyer"), t.Literal("admin")]),
     }),
   },
 );

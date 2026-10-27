@@ -2,9 +2,9 @@ import { pageMetadata } from "@/lib/seo";
 import View from "./view";
 
 export const metadata = pageMetadata({
-  title: "Seller orders",
-  description: "Fulfil orders placed with your store.",
-  path: "/seller/orders",
+  title: "Products",
+  description: "Soko's catalogue: create, edit and publish listings.",
+  path: "/admin/products",
   noIndex: true,
 });
 

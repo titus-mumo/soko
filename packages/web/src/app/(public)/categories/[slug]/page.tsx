@@ -30,7 +30,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   if (!category) notFound();
   return pageMetadata({
     title: `${category.name} — shop online in Kenya`,
-    description: `Shop ${category.name.toLowerCase()} on Soko from trusted Kenyan sellers. Compare prices, pay with M-Pesa and get delivery across Kenya.`,
+    description: `Shop ${category.name.toLowerCase()} on Soko. Compare prices, pay with M-Pesa and get delivery across Kenya.`,
     path: `/categories/${category.slug}`,
   });
 }

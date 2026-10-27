@@ -96,15 +96,6 @@ export async function createReview(
     );
   }
 
-  // Notify the seller of the new review.
-  await notificationRepository.insertNotification({
-    userId: seller.userId,
-    type: "new_review",
-    title: "New Review",
-    body: `A buyer left a ${data.rating}-star review on one of your products.`,
-    channel: "push",
-  });
-
   return "review_created";
 }
 

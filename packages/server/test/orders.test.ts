@@ -26,7 +26,9 @@ afterAll(() => t.cleanup());
 
 const stock = async () =>
   ok<{ variants: { id: string; stockQuantity: number }[] }>(
-    await api("GET", `/products/me/${m.product.id}`, { token: m.seller.token }),
+    await api("GET", `/products/admin/${m.product.id}`, {
+      token: m.admin.token,
+    }),
   ).variants.find((v) => v.id === m.product.variantId)!.stockQuantity;
 
 describe("placing orders", () => {
@@ -95,7 +97,7 @@ describe("placing orders", () => {
     expect(res.body.message).toMatch(/delivery zone/i);
   });
 
-  test("places an order: totals, seller, stock and cart are all right", async () => {
+  test("places an order: totals, stock and cart are all right", async () => {
     const before = await stock();
     const { orderId, total } = await placeOrder(m, 2);
 
@@ -175,75 +177,12 @@ describe("buyer order access", () => {
   });
 });
 
-describe("seller order items", () => {
-  test("GET /orders/seller/items lists items sold by my store", async () => {
-    const { orderItemId } = await placeOrder(m);
-    const items = ok<{ id: string }[]>(
-      await api("GET", "/orders/seller/items", { token: m.seller.token }),
-    );
-    expect(items.map((i) => i.id)).toContain(orderItemId);
-  });
-
-  test("other sellers don't see my items", async () => {
-    const { orderItemId } = await placeOrder(m);
-    const items = ok<{ id: string }[]>(
-      await api("GET", "/orders/seller/items", { token: otherSeller.token }),
-    );
-    expect(items.map((i) => i.id)).not.toContain(orderItemId);
-  });
-
-  test("PATCH /orders/seller/items/:id/status advances the item", async () => {
-    const { orderItemId } = await placePaidOrder(m);
-    const notesBefore = ok<unknown[]>(
-      await api("GET", "/notifications/me", { token: m.buyer.token }),
-    ).length;
-    ok(
-      await api("PATCH", `/orders/seller/items/${orderItemId}/status`, {
-        token: m.seller.token,
-        body: { status: "processing" },
-      }),
-    );
-    const packing = ok<{ id: string }[]>(
-      await api("GET", "/orders/seller/items/processing", {
-        token: m.seller.token,
-      }),
-    );
-    expect(packing.map((i) => i.id)).toContain(orderItemId);
-
-    // Progress shows on the order; the buyer isn't pinged per item.
-    const notesAfter = ok<unknown[]>(
-      await api("GET", "/notifications/me", { token: m.buyer.token }),
-    ).length;
-    expect(notesAfter).toBe(notesBefore);
-  });
-
-  test("GET /orders/seller/items/:status filters by status", async () => {
-    const pending = ok<{ status: string }[]>(
-      await api("GET", "/orders/seller/items/pending", {
-        token: m.seller.token,
-      }),
-    );
-    expect(pending.every((i) => i.status === "pending")).toBe(true);
-  });
-
-  test("a seller can't update another store's item", async () => {
-    const { orderItemId } = await placeOrder(m);
-    const res = await api(
-      "PATCH",
-      `/orders/seller/items/${orderItemId}/status`,
-      {
-        token: otherSeller.token,
-        body: { status: "cancelled" },
-      },
-    );
-    expect(res.status).toBe(404);
-  });
-
-  test("seller item routes are seller-only", async () => {
-    expect(
-      (await api("GET", "/orders/seller/items", { token: m.buyer.token }))
-        .status,
-    ).toBe(403);
+describe("store accounts", () => {
+  test("have no order routes any more", async () => {
+    for (const path of ["/orders/seller/items", "/orders/seller/stats"])
+      expect(
+        (await api("GET", path, { token: otherSeller.token })).status,
+      ).toBe(404);
   });
 });
 
@@ -294,7 +233,7 @@ describe("admin orders", () => {
     expect(
       (
         await api("GET", "/orders/admin/status/pending", {
-          token: m.seller.token,
+          token: m.buyer.token,
         })
       ).status,
     ).toBe(403);

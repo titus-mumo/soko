@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  getMyProducts,
+  getAdminProductCounts,
+  getAdminProducts,
   deleteProduct,
   publishProduct,
   unpublishProduct,
@@ -17,6 +18,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { FilterChips } from "@/components/ui/FilterChips";
 import { ProductStatusBadge } from "@/components/ui/StatusBadge";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Icon } from "@/components/ui/Icon";
@@ -24,7 +26,7 @@ import { Tooltip } from "@/components/ui/Tooltip";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { cardClasses } from "@/components/ui/Card";
 import { apiErrorMessage, cn, formatKES } from "@/lib/utils";
-import type { ProductWithMedia } from "@/lib/types";
+import type { ProductStatus, ProductWithMedia } from "@/lib/types";
 
 function priceRange(p: ProductWithMedia): string {
   if (p.variants.length === 0) return "—";
@@ -39,13 +41,41 @@ const totalStock = (p: ProductWithMedia) =>
 
 type BulkAction = "publish" | "unpublish" | "delete";
 
-export default function SellerProductsPage() {
-  // Each page arrives with variants, images and units sold.
-  const list = usePagedList((page) => getMyProducts(page), [], {
-    errorMessage: "Failed to load your listings",
-  });
+type Tab = "all" | ProductStatus;
+const TABS: { value: Tab; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "active", label: "Live" },
+  { value: "draft", label: "Drafts" },
+  { value: "suspended", label: "Suspended" },
+];
+
+/** Soko's catalogue: every listing, managed by admins. */
+export default function AdminProductsPage() {
+  const [tab, setTab] = useState<Tab>("all");
+  const [counts, setCounts] = useState<Partial<Record<ProductStatus, number>>>(
+    {},
+  );
+  const loadCounts = () =>
+    getAdminProductCounts()
+      .then(setCounts)
+      .catch(() => {});
+  useEffect(() => {
+    loadCounts();
+  }, []);
+
+  // Each page arrives with variants, images and units sold; the status tab
+  // filters on the server.
+  const list = usePagedList(
+    (page) => getAdminProducts(page, tab === "all" ? undefined : tab),
+    [tab],
+    { errorMessage: "Failed to load the catalogue" },
+  );
   const { items: products, setItems: setProducts, loading, error } = list;
-  const fetchProducts = () => list.reload();
+  const fetchProducts = () => {
+    list.reload();
+    loadCounts();
+  };
+  const total = Object.values(counts).reduce((a, b) => a + (b ?? 0), 0);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ProductWithMedia | null>(
@@ -69,6 +99,7 @@ export default function SellerProductsPage() {
         ),
       );
       toast.success(isLive ? "Listing unpublished" : "Listing published");
+      loadCounts();
     } catch (err) {
       toast.error(apiErrorMessage(err, "Failed to update listing"));
     } finally {
@@ -88,6 +119,7 @@ export default function SellerProductsPage() {
         return next;
       });
       toast.success("Listing deleted");
+      loadCounts();
     } catch (err) {
       toast.error(apiErrorMessage(err, "Failed to delete listing"));
     } finally {
@@ -150,6 +182,7 @@ export default function SellerProductsPage() {
     );
     setSelected(new Set());
     setBulkBusy(null);
+    loadCounts();
     setConfirmBulkDelete(false);
 
     const verb =
@@ -188,7 +221,7 @@ export default function SellerProductsPage() {
         )}
         <Tooltip label="Edit">
           <Link
-            href={`/seller/products/${product.id}/edit`}
+            href={`/admin/products/${product.id}/edit`}
             aria-label={`Edit ${product.name}`}
             className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
           >
@@ -239,18 +272,31 @@ export default function SellerProductsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Listings"
+        title="Products"
         description={
-          loading
-            ? "Loading…"
-            : `${products.length}${list.hasMore ? "+" : ""} listing${products.length !== 1 || list.hasMore ? "s" : ""}`
+          total > 0
+            ? `${total} listing${total === 1 ? "" : "s"} in Soko's catalogue`
+            : "Soko's catalogue"
         }
         actions={
-          <ButtonLink href="/seller/products/new">
+          <ButtonLink href="/admin/products/new">
             <Icon name="plus" />
             New listing
           </ButtonLink>
         }
+      />
+
+      <FilterChips
+        label="Filter listings by status"
+        value={tab}
+        onChange={(t) => {
+          setTab(t);
+          setSelected(new Set());
+        }}
+        options={TABS.map((t) => ({
+          ...t,
+          count: t.value === "all" ? total : (counts[t.value] ?? 0),
+        }))}
       />
 
       {loading ? (
@@ -261,17 +307,21 @@ export default function SellerProductsPage() {
         </div>
       ) : error ? (
         <ErrorState
-          title="Couldn't load your listings"
+          title="Couldn't load the catalogue"
           message={error}
           onRetry={fetchProducts}
         />
       ) : products.length === 0 ? (
         <EmptyState
           icon="tag"
-          title="No listings yet"
-          description="Create your first listing and start selling"
+          title={tab === "all" ? "No listings yet" : "Nothing here"}
+          description={
+            tab === "all"
+              ? "Create the first listing in Soko's catalogue."
+              : "No listings have this status."
+          }
           action={
-            <ButtonLink href="/seller/products/new">
+            <ButtonLink href="/admin/products/new">
               <Icon name="plus" />
               Create a listing
             </ButtonLink>
@@ -510,7 +560,7 @@ export default function SellerProductsPage() {
       <ConfirmDialog
         open={confirmBulkDelete}
         title={`Delete ${selected.size} listing${selected.size === 1 ? "" : "s"}`}
-        message="The selected listings will be removed from your store. This cannot be undone."
+        message="The selected listings will be removed from the catalogue. This cannot be undone."
         confirmLabel="Delete"
         destructive
         loading={bulkBusy === "delete"}

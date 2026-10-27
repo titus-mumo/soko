@@ -160,7 +160,7 @@ const enabled = () =>
  * API sits behind a proxy that sets it) — otherwise anyone could send a
  * fresh value per request and never be limited.
  */
-function clientIp(request: Request, server: any): string {
+export function clientIp(request: Request, server: any): string {
   if (Bun.env.TRUST_PROXY === "1") {
     const fwd = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
     if (fwd) return fwd;

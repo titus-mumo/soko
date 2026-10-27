@@ -7,14 +7,12 @@
 // piecemeal by sellers.
 
 import { getRepositories } from "../lib/repositories";
-import { DROP_OFF_HOURS, HUB_LABEL } from "../lib/hub";
 import type { OrderItem, OrderStatus, Shipment } from "db-operations";
 
 const {
   orderRepository,
   orderItemRepository,
   shipmentRepository,
-  sellerProfileRepository,
   notificationRepository,
 } = getRepositories();
 
@@ -94,32 +92,4 @@ export async function notifyBuyer(
     body,
     channel: "push",
   });
-}
-
-/**
- * Tells each seller in a newly paid order what to drop off at the hub.
- * One notification per seller, however many of their items are in it.
- */
-export async function notifySellersOfPaidOrder(orderId: string) {
-  const items = (await orderItemRepository.findItemsByOrderId(orderId)).filter(
-    isActive,
-  );
-  const bySeller = new Map<string, number>();
-  for (const i of items)
-    bySeller.set(i.sellerId, (bySeller.get(i.sellerId) ?? 0) + i.quantity);
-
-  await Promise.all(
-    [...bySeller].map(async ([sellerId, units]) => {
-      const seller =
-        await sellerProfileRepository.findSellerProfileById(sellerId);
-      if (seller === "seller_not_found") return;
-      await notificationRepository.insertNotification({
-        userId: seller.userId,
-        type: "seller_new_order",
-        title: "New order to prepare",
-        body: `Order ${orderRef(orderId)}: ${units} item${units === 1 ? "" : "s"} paid. Drop off at ${HUB_LABEL} within ${DROP_OFF_HOURS} hours.`,
-        channel: "push",
-      });
-    }),
-  );
 }

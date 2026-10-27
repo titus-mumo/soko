@@ -4,6 +4,8 @@ import { useState } from "react";
 import {
   getPlatformPromotions,
   createPlatformPromotion,
+  deletePromotion,
+  setPromotionActive,
   type Promotion,
 } from "@/lib/admin.api";
 import { toast } from "@/store/toast.store";
@@ -11,6 +13,7 @@ import { LoadMore } from "@/components/ui/LoadMore";
 import { usePagedList } from "@/hooks/usePagedList";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -161,15 +164,49 @@ export default function AdminPromotionsPage() {
   const list = usePagedList((page) => getPlatformPromotions(page), [], {
     errorMessage: "Couldn't load promotions",
   });
-  const { items: promotions, loading, error } = list;
+  const { items: promotions, setItems, loading, error } = list;
   const load = () => list.reload({ quiet: true });
   const [creating, setCreating] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Promotion | null>(null);
+
+  const toggle = async (p: Promotion) => {
+    const active = p.isActive === false;
+    setBusy(p.id);
+    try {
+      await setPromotionActive(p.id, active);
+      setItems((prev) =>
+        prev.map((x) => (x.id === p.id ? { ...x, isActive: active } : x)),
+      );
+      toast.success(`${p.code} ${active ? "activated" : "paused"}`);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Failed to update promotion"));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const remove = async () => {
+    if (!confirmDelete) return;
+    const p = confirmDelete;
+    setBusy(p.id);
+    try {
+      await deletePromotion(p.id);
+      setItems((prev) => prev.filter((x) => x.id !== p.id));
+      toast.success(`${p.code} deleted`);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Failed to delete promotion"));
+    } finally {
+      setBusy(null);
+      setConfirmDelete(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Platform promotions"
-        description="Promo codes applied platform-wide"
+        title="Promotions"
+        description="Promo codes buyers can use at checkout"
         actions={
           !creating && (
             <Button size="sm" onClick={() => setCreating(true)}>
@@ -218,6 +255,7 @@ export default function AdminPromotionsPage() {
                   "Uses",
                   "Expires",
                   "Status",
+                  "",
                 ].map((h) => (
                   <th
                     key={h}
@@ -233,7 +271,7 @@ export default function AdminPromotionsPage() {
               {loading
                 ? Array.from({ length: 3 }).map((_, i) => (
                     <tr key={i} aria-hidden="true">
-                      {Array.from({ length: 6 }).map((_, j) => (
+                      {Array.from({ length: 7 }).map((_, j) => (
                         <td key={j} className="px-4 py-3">
                           <Skeleton className="h-4 w-16 rounded" />
                         </td>
@@ -267,6 +305,30 @@ export default function AdminPromotionsPage() {
                         <td className="px-4 py-3">
                           <Badge variant={status.variant}>{status.label}</Badge>
                         </td>
+                        <td className="px-4 py-3">
+                          <div className="flex justify-end gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              isLoading={busy === p.id && !confirmDelete}
+                              disabled={busy === p.id}
+                              onClick={() => toggle(p)}
+                              aria-label={`${p.isActive === false ? "Activate" : "Pause"} ${p.code}`}
+                            >
+                              {p.isActive === false ? "Activate" : "Pause"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={busy === p.id}
+                              onClick={() => setConfirmDelete(p)}
+                              className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/20"
+                              aria-label={`Delete ${p.code}`}
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
@@ -278,6 +340,17 @@ export default function AdminPromotionsPage() {
         hasMore={list.hasMore}
         loading={list.loadingMore}
         onLoadMore={list.loadMore}
+      />
+
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="Delete promotion"
+        message={`Delete ${confirmDelete?.code}? Buyers won't be able to use it.`}
+        confirmLabel="Delete"
+        destructive
+        loading={busy === confirmDelete?.id}
+        onConfirm={remove}
+        onClose={() => setConfirmDelete(null)}
       />
     </div>
   );
