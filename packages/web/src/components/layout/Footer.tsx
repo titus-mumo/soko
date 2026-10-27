@@ -11,6 +11,15 @@ const COLUMNS: { title: string; links: { href: string; label: string }[] }[] = [
     ],
   },
   {
+    title: "Legal",
+    links: [
+      { href: "/terms", label: "Terms of service" },
+      { href: "/privacy", label: "Privacy policy" },
+      { href: "/returns", label: "Returns & refunds" },
+      { href: "/cookies", label: "Cookie policy" },
+    ],
+  },
+  {
     title: "Help",
     links: [
       { href: "/delivery", label: "Delivery zones and fees" },

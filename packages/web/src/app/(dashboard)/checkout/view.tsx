@@ -542,6 +542,24 @@ export default function CheckoutPage() {
 
               <FormError message={serverError} />
 
+              <p className="mt-4 text-xs text-zinc-500 dark:text-zinc-400">
+                By paying you agree to our{" "}
+                <Link
+                  href="/terms"
+                  className="underline hover:text-zinc-900 dark:hover:text-zinc-100"
+                >
+                  Terms of service
+                </Link>{" "}
+                and{" "}
+                <Link
+                  href="/returns"
+                  className="underline hover:text-zinc-900 dark:hover:text-zinc-100"
+                >
+                  Returns &amp; refunds policy
+                </Link>
+                .
+              </p>
+
               <StepActions onBack={() => setStep(1)}>
                 <Button
                   type="submit"

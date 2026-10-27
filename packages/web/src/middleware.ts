@@ -93,6 +93,8 @@ export function middleware(req: NextRequest) {
 export const config = {
   // Skip static assets and the image optimizer — they don't need a CSP.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)",
+    // Static assets and metadata routes (icons, share images, manifest)
+    // need no CSP or session rewrites.
+    "/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-icon|opengraph-image|twitter-image|manifest.webmanifest|robots.txt|sitemap.xml).*)",
   ],
 };

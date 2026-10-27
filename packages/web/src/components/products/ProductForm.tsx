@@ -10,6 +10,8 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { FormError } from "@/components/ui/FormError";
+import { SafeImage } from "@/components/ui/SafeImage";
+import { ImageUploader } from "./ImageUploader";
 import {
   productSchema,
   type ProductFormValues,
@@ -68,6 +70,7 @@ export function ProductForm({
     control,
     reset,
     getValues,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
@@ -276,7 +279,7 @@ export function ProductForm({
       {withImages && (
         <FormSection
           title="Photos"
-          description="Image links. The first one is the main photo."
+          description="Upload photos or paste image links. The first one is the main photo."
           action={
             <Button
               type="button"
@@ -285,18 +288,20 @@ export function ProductForm({
               onClick={() => imageFields.append({ url: "" })}
             >
               <Icon name="plus" size={14} />
-              Add photo
+              Add link
             </Button>
           }
         >
-          {imageFields.fields.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-zinc-300 py-6 text-center text-sm text-zinc-500 dark:border-zinc-700">
-              No images. The first one you add becomes the primary image.
-            </p>
-          ) : (
-            <div className="space-y-2">
+          <ImageUploader
+            onUploaded={(urls) =>
+              imageFields.append(urls.map((url) => ({ url })))
+            }
+          />
+          {imageFields.fields.length > 0 && (
+            <div className="mt-4 space-y-2">
               {imageFields.fields.map((field, i) => (
                 <div key={field.id} className="flex items-start gap-2">
+                  <ImagePreview url={watch(`images.${i}.url`)} />
                   <div className="flex-1">
                     <Input
                       label={`Image ${i + 1} URL${i === 0 ? " (primary)" : ""}`}
@@ -337,5 +342,23 @@ export function ProductForm({
         </Button>
       </FormActions>
     </form>
+  );
+}
+
+/** A small thumbnail beside an image link, once it looks like a URL. */
+function ImagePreview({ url }: { url?: string }) {
+  const valid = !!url && /^https?:\/\/\S+$/.test(url);
+  return (
+    <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md border border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800">
+      {valid && (
+        <SafeImage
+          src={url!}
+          alt=""
+          fill
+          sizes="40px"
+          className="object-cover"
+        />
+      )}
+    </div>
   );
 }

@@ -16,6 +16,7 @@ import {
   deleteProductImage,
 } from "@/lib/products.api";
 import { toast } from "@/store/toast.store";
+import { ImageUploader } from "@/components/products/ImageUploader";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button, ButtonLink } from "@/components/ui/Button";
@@ -69,6 +70,18 @@ function ImageManager({
     } finally {
       setAdding(false);
     }
+  };
+
+  // Uploaded photos are added in order; the first becomes primary if the
+  // listing has none yet.
+  const handleUploaded = async (urls: string[]) => {
+    for (const [i, url] of urls.entries())
+      await addProductImage(product.id, {
+        url,
+        isPrimary: product.images.length === 0 && i === 0,
+        sortOrder: product.images.length + i,
+      });
+    await onRefresh();
   };
 
   const handleSetPrimary = async (img: ProductImage) => {
@@ -158,14 +171,16 @@ function ImageManager({
         </div>
       ) : (
         <p className="rounded-md border border-dashed border-zinc-200 py-8 text-center text-sm text-zinc-400 dark:border-zinc-800 dark:text-zinc-600">
-          No images yet. Add one below.
+          No images yet. Upload some below.
         </p>
       )}
+
+      <ImageUploader onUploaded={handleUploaded} />
 
       <form onSubmit={handleAdd} className="flex items-start gap-2">
         <div className="flex-1">
           <Input
-            label="New image URL"
+            label="Or add an image link"
             hideLabel
             type="url"
             value={url}
@@ -178,7 +193,7 @@ function ImageManager({
         </Button>
       </form>
       <p className="text-xs text-zinc-500 dark:text-zinc-400">
-        Paste the full image URL. The first image becomes the primary.
+        Or paste an image link. The first image becomes the primary.
       </p>
 
       <ConfirmDialog

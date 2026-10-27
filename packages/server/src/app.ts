@@ -19,6 +19,7 @@ import { scrub } from "./lib/views";
 import { rateLimit } from "./lib/rate-limit";
 import { auditLog } from "./lib/audit";
 import { auditRoutes } from "./routes/audit";
+import { uploadRoutes } from "./routes/upload";
 
 const checkSoko = "soko server is running!";
 
@@ -116,6 +117,7 @@ const App = new Elysia()
   .use(promotionRoutes)
   .use(notificationRoutes)
   .use(searchRoutes)
-  .use(auditRoutes);
+  .use(auditRoutes)
+  .use(uploadRoutes);
 
 export default App;

@@ -4,8 +4,7 @@
 // public navbar layout. It grants nothing: the app layout still restores the
 // session itself and drops the hint if that fails.
 //
-// Admins don't get it — they have their own area and see the public pages
-// like guests.
+// Admins get it too: on the shop pages they see the admin sidebar.
 
 export const SESSION_HINT_COOKIE = "soko_session";
 
@@ -25,9 +24,13 @@ export function hasSessionHint(): boolean {
     .some((c) => c === `${SESSION_HINT_COOKIE}=1`);
 }
 
-/** Whether this user should browse the shared pages inside the app layout. */
+/**
+ * Whether this user should browse the shared pages inside the app layout —
+ * every signed-in user, so the sidebar never disappears. Admins get it with
+ * the admin navigation.
+ */
 export function wantsAppLayout(role?: string): boolean {
-  return role === "buyer" || role === "seller";
+  return role === "buyer" || role === "seller" || role === "admin";
 }
 
 /**
@@ -39,6 +42,7 @@ export function isSharedPath(pathname: string): boolean {
     pathname === "/" ||
     pathname === "/delivery" ||
     pathname === "/cart" ||
+    /^\/(terms|privacy|returns|cookies)$/.test(pathname) ||
     /^\/(products|categories)(\/[^/]+)?$/.test(pathname)
   );
 }

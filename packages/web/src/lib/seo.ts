@@ -7,6 +7,9 @@ export const SITE_URL = (
   process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"
 ).replace(/\/$/, "");
 
+/** The generated default share card (app/opengraph-image.tsx). */
+export const DEFAULT_SHARE_IMAGE = "/opengraph-image";
+
 /** "/products/x" → "https://soko.example/products/x" */
 export function absoluteUrl(path = "/"): string {
   return `${SITE_URL}${path.startsWith("/") ? path : `/${path}`}`;
@@ -34,7 +37,9 @@ export function pageMetadata({
   type = "website",
 }: PageMetadataInput): Metadata {
   const url = absoluteUrl(path);
-  const images = image ? [{ url: image, alt: title }] : undefined;
+  // Pages without their own picture share the default Soko card
+  // (app/opengraph-image.tsx), so links never unfurl without an image.
+  const images = [{ url: image ?? DEFAULT_SHARE_IMAGE, alt: title }];
 
   return {
     title,
@@ -47,13 +52,13 @@ export function pageMetadata({
       title: `${title} | ${SITE_NAME}`,
       description,
       locale: "en_KE",
-      ...(images && { images }),
+      images,
     },
     twitter: {
-      card: image ? "summary_large_image" : "summary",
+      card: "summary_large_image",
       title: `${title} | ${SITE_NAME}`,
       description,
-      ...(image && { images: [image] }),
+      images: [images[0].url],
     },
     ...(noIndex && { robots: { index: false, follow: false } }),
   };

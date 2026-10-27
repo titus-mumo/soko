@@ -121,6 +121,23 @@ export function RegisterForm() {
         >
           Create account
         </Button>
+        <p className="text-center text-xs text-zinc-500 dark:text-zinc-400">
+          By creating an account you agree to our{" "}
+          <Link
+            href="/terms"
+            className="underline hover:text-zinc-900 dark:hover:text-zinc-100"
+          >
+            Terms of service
+          </Link>{" "}
+          and{" "}
+          <Link
+            href="/privacy"
+            className="underline hover:text-zinc-900 dark:hover:text-zinc-100"
+          >
+            Privacy policy
+          </Link>
+          .
+        </p>
       </form>
 
       <p className="mt-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
