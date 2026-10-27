@@ -7,8 +7,9 @@ import {
   GetProductVariants,
   GetProductImages,
   GetProductTags,
-  GetMyProducts,
-  GetMyProduct,
+  GetManagedProducts,
+  GetCatalogueCounts,
+  GetManagedProduct,
   GetVariantDetails,
 } from "./getProducts";
 import { CreateProduct } from "./createProduct";
@@ -42,24 +43,25 @@ export const productRoutes = new Elysia().group("/products", (app) =>
     .use(GetProductImages)
     .use(GetProductTags)
     .use(GetVariantDetails)
-    // Seller — product management
-    .use(GetMyProducts)
-    .use(GetMyProduct)
+    // Admin — catalogue management (Soko lists everything itself)
+    .use(GetManagedProducts)
+    .use(GetCatalogueCounts)
+    .use(GetManagedProduct)
     .use(CreateProduct)
     .use(UpdateProduct)
     .use(PublishProduct)
     .use(UnpublishProduct)
     .use(DeleteProduct)
-    // Seller — variants
+    // Admin — variants
     .use(AddVariant)
     .use(UpdateVariant)
     .use(AdjustVariantStock)
     .use(DeleteVariant)
-    // Seller — images
+    // Admin — images
     .use(AddProductImage)
     .use(SetPrimaryImage)
     .use(DeleteProductImage)
-    // Seller — tags
+    // Admin — tags
     .use(ReplaceProductTags)
     .onError(({ code, error, set }) => {
       if (code === "VALIDATION") {

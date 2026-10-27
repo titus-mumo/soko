@@ -5,13 +5,13 @@ import {
   createSeller,
   createUser,
   login,
-  missingId,
   ok,
   RUN,
   Tracker,
   type TestSeller,
   type TestUser,
 } from "./helpers";
+import { getRepositories } from "../src/lib/repositories";
 
 const t = new Tracker();
 let admin: TestUser;
@@ -25,48 +25,23 @@ beforeAll(async () => {
 });
 afterAll(() => t.cleanup());
 
-describe("POST /sellers/onboard", () => {
-  test("opens a store and upgrades the role", async () => {
-    const u = await createUser(t);
-    const slug = `onboard-${RUN}`;
-    const profile = ok(
-      await api("POST", "/sellers/onboard", {
-        token: u.token,
-        body: {
-          storeName: "Onboard Store",
-          storeSlug: slug,
-          storeDescription: "Hi",
-        },
-      }),
-      201,
+const storeOf = async (s: TestSeller) => {
+  const store =
+    await getRepositories().sellerProfileRepository.findSellerProfileById(
+      s.sellerId,
     );
-    expect(profile.storeSlug).toBe(slug);
-    expect(profile.userId).toBe(u.id);
-    expect((await login(u.email)).user.role).toBe("seller");
-  });
+  if (store === "seller_not_found") throw new Error("store missing");
+  return store;
+};
 
-  test("409 when the user already has a store", async () => {
+describe("seller sign-ups are closed", () => {
+  test("there's no way to open a store", async () => {
     const res = await api("POST", "/sellers/onboard", {
-      token: seller.token,
-      body: { storeName: "Second", storeSlug: `second-${RUN}` },
+      token: buyer.token,
+      body: { storeName: "New Store", storeSlug: `new-${RUN}` },
     });
-    expect(res.status).toBe(409);
-  });
-
-  test("409 when the slug is taken", async () => {
-    const u = await createUser(t);
-    const res = await api("POST", "/sellers/onboard", {
-      token: u.token,
-      body: { storeName: "Copycat", storeSlug: seller.storeSlug },
-    });
-    expect(res.status).toBe(409);
-  });
-
-  test("401 without a token", async () => {
-    const res = await api("POST", "/sellers/onboard", {
-      body: { storeName: "Anon", storeSlug: `anon-${RUN}` },
-    });
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(404);
+    expect((await login(buyer.email)).user.role).toBe("buyer");
   });
 });
 
@@ -84,54 +59,21 @@ describe("public store lookups", () => {
   });
 });
 
-describe("seller profile", () => {
-  test("GET /sellers/me returns my store", async () => {
-    const me = ok(await api("GET", "/sellers/me", { token: seller.token }));
-    expect(me.id).toBe(seller.sellerId);
-  });
-
-  test("GET /sellers/me is seller-only", async () => {
-    expect(
-      (await api("GET", "/sellers/me", { token: buyer.token })).status,
-    ).toBe(403);
-  });
-
-  test("PATCH /sellers/me updates the store", async () => {
-    const updated = ok(
-      await api("PATCH", "/sellers/me", {
-        token: seller.token,
-        body: { storeDescription: "Updated by tests" },
-      }),
-    );
-    expect(updated.storeDescription).toBe("Updated by tests");
-  });
-
-  test("PATCH /sellers/me rejects a taken slug", async () => {
-    const other = await createSeller(t);
-    const res = await api("PATCH", "/sellers/me", {
-      token: other.token,
-      body: { storeSlug: seller.storeSlug },
-    });
-    expect(res.status).toBe(409);
-  });
-
-  test("POST /sellers/me/verification-docs stores the document privately", async () => {
-    ok(
-      await api("POST", "/sellers/me/verification-docs", {
-        token: seller.token,
-        body: { docUrl: "https://example.com/kra.pdf" },
-      }),
-    );
-    const me = ok(await api("GET", "/sellers/me", { token: seller.token }));
-    expect(me.verificationDocs).toContain("https://example.com/kra.pdf");
-  });
-
-  test("DELETE /sellers/me closes the store", async () => {
-    const s = await createSeller(t);
-    ok(await api("DELETE", "/sellers/me", { token: s.token }));
-    expect([403, 404]).toContain(
-      (await api("GET", "/sellers/me", { token: s.token })).status,
-    );
+describe("existing store accounts", () => {
+  test("have no store self-service any more", async () => {
+    for (const [method, path, body] of [
+      ["GET", "/sellers/me"],
+      ["PATCH", "/sellers/me", { storeDescription: "x" }],
+      [
+        "POST",
+        "/sellers/me/verification-docs",
+        { docUrl: "https://x.test/a.pdf" },
+      ],
+      ["DELETE", "/sellers/me"],
+    ] as [string, string, unknown?][])
+      expect(
+        (await api(method, path, { token: seller.token, body })).status,
+      ).toBe(404);
   });
 });
 
@@ -142,8 +84,7 @@ describe("admin: sellers", () => {
         token: admin.token,
       }),
     );
-    const store = ok(await api("GET", "/sellers/me", { token: seller.token }));
-    expect(store.isVerified).toBe(true);
+    expect((await storeOf(seller)).isVerified).toBe(true);
   });
 
   test("PATCH /sellers/admin/:userId/rating sets the rating", async () => {
@@ -153,16 +94,17 @@ describe("admin: sellers", () => {
         body: { rating: "4.50" },
       }),
     );
-    const store = ok(await api("GET", "/sellers/me", { token: seller.token }));
-    expect(Number(store.rating)).toBe(4.5);
+    expect(Number((await storeOf(seller)).rating)).toBe(4.5);
   });
 
   test("DELETE /sellers/admin/:userId removes the store", async () => {
     const s = await createSeller(t);
     ok(await api("DELETE", `/sellers/admin/${s.id}`, { token: admin.token }));
-    expect([403, 404]).toContain(
-      (await api("GET", "/sellers/me", { token: s.token })).status,
-    );
+    expect(
+      await getRepositories().sellerProfileRepository.findSellerProfileById(
+        s.sellerId,
+      ),
+    ).toBe("seller_not_found");
   });
 
   test("404 for users without a store", async () => {

@@ -1,5 +1,5 @@
 import { getRepositories } from "../lib/repositories";
-import { notifySellersOfPaidOrder, orderRef } from "./fulfilment";
+import { orderRef } from "./fulfilment";
 
 const {
   paymentRepository,
@@ -239,9 +239,6 @@ export async function handleDarajaCallback(
 
       // Advance all order items to confirmed.
       await orderItemRepository.updateStatusByOrderId(orderId, "confirmed");
-
-      // Each seller hears once what to drop off at the hub.
-      await notifySellersOfPaidOrder(orderId);
 
       // Notify the buyer of successful payment.
       const order = await orderRepository.findOrderById(orderId);

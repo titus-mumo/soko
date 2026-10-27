@@ -58,14 +58,17 @@ export async function changePassword(
   const account = await userRepository.findUserById(userId);
   if (!account) return "user_not_found";
 
-  const user = await userRepository.findUserByEmailOrPhone(
-    account.email,
-    data.currentPassword,
-  );
-
-  if (user === "user_not_found") return "user_not_found";
-  if (user === "incorrect_password") return "incorrect_password";
-  if (user === "something_went_wrong") throw new Error("Auth error");
+  // An account without a password yet (Google sign-up) sets its first one;
+  // otherwise the current password must match.
+  if (await userRepository.hasPassword(userId)) {
+    const user = await userRepository.findUserByEmailOrPhone(
+      account.email,
+      data.currentPassword,
+    );
+    if (user === "user_not_found") return "user_not_found";
+    if (user === "incorrect_password") return "incorrect_password";
+    if (user === "something_went_wrong") throw new Error("Auth error");
+  }
 
   await userRepository.updateUser(userId, {
     passwordHash: data.newPassword, // hashed inside the repository

@@ -7,12 +7,14 @@ import { useNotificationStore } from "@/store/notification.store";
 export async function syncCartTotals(): Promise<void> {
   try {
     const summary = await getCartSummary();
-    useCartStore
-      .getState()
-      .setTotals(summary.itemCount, Number(summary.subtotal));
+    useCartStore.getState().setTotals(
+      summary.itemCount,
+      Number(summary.subtotal),
+      summary.items.map((i) => i.productVariantId),
+    );
   } catch {
     // A user with no cart yet gets a 404 here.
-    useCartStore.getState().setTotals(0, 0);
+    useCartStore.getState().setTotals(0, 0, []);
   }
 }
 

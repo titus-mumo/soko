@@ -28,7 +28,7 @@ const NOTIFICATIONS: NavItem = {
 };
 const PROFILE: NavItem = { href: "/profile", label: "Profile", icon: "user" };
 
-/** Shopping: buyers always, sellers when they switch to "Shopping". */
+/** The signed-in shopper's navigation. */
 export const BUYING_NAV: NavSection[] = [
   {
     items: [
@@ -49,28 +49,12 @@ export const BUYING_NAV: NavSection[] = [
   },
 ];
 
-/** Running a store. */
-export const SELLING_NAV: NavSection[] = [
-  {
-    items: [
-      { href: "/dashboard", label: "Dashboard", icon: "trend", exact: true },
-      { href: "/seller/products", label: "My Listings", icon: "tag" },
-      { href: "/seller/orders", label: "Orders", icon: "receipt" },
-      NOTIFICATIONS,
-      PROFILE,
-    ],
-  },
-  {
-    title: "More",
-    items: [{ href: "/seller/promotions", label: "Promotions", icon: "zap" }],
-  },
-];
-
 export const ADMIN_NAV: NavSection[] = [
   {
     title: "Admin",
     items: [
       { href: "/admin", label: "Overview", icon: "home", exact: true },
+      { href: "/admin/products", label: "Products", icon: "tag" },
       { href: "/admin/hub", label: "Hub", icon: "inbox" },
       { href: "/admin/users", label: "Users", icon: "users" },
       { href: "/admin/orders", label: "Orders", icon: "bag" },
@@ -79,24 +63,18 @@ export const ADMIN_NAV: NavSection[] = [
       { href: "/admin/disputes", label: "Disputes", icon: "shield" },
       { href: "/admin/promotions", label: "Promotions", icon: "tag" },
       { href: "/admin/notifications", label: "Notifications", icon: "bell" },
+      { href: "/admin/monitoring", label: "Monitoring", icon: "trend" },
+      { href: "/admin/audit", label: "Audit log", icon: "receipt" },
     ],
   },
 ];
 
-/** Bottom tab bar (mobile), per mode. */
+/** Bottom tab bar (mobile). */
 export const MOBILE_TABS: NavItem[] = [
   { href: "/", label: "Home", icon: "home", exact: true },
   { href: "/products", label: "Products", icon: "package" },
   { href: "/cart", label: "Cart", icon: "cart", badge: "cart" },
   { href: "/orders", label: "Orders", icon: "receipt" },
-  PROFILE,
-];
-
-export const SELLING_TABS: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: "trend", exact: true },
-  { href: "/seller/products", label: "Listings", icon: "tag" },
-  { href: "/seller/orders", label: "Orders", icon: "receipt" },
-  { ...NOTIFICATIONS, label: "Alerts" },
   PROFILE,
 ];
 
@@ -119,14 +97,11 @@ const TITLES: [prefix: string, title: string][] = [
   ["/notifications", "Notifications"],
   ["/profile/password", "Password"],
   ["/profile/addresses", "Addresses"],
-  ["/profile/seller", "Store settings"],
   ["/profile", "Profile"],
   ["/reviews", "Reviews"],
   ["/disputes", "Disputes"],
-  ["/seller/products/new", "New listing"],
-  ["/seller/products", "My Listings"],
-  ["/seller/orders", "Orders"],
-  ["/seller/promotions", "Promotions"],
+  ["/admin/products/new", "New listing"],
+  ["/admin/products", "Products"],
   ["/admin/users", "Users"],
   ["/admin/hub", "Hub"],
   ["/admin/orders", "Orders"],
@@ -135,12 +110,14 @@ const TITLES: [prefix: string, title: string][] = [
   ["/admin/disputes", "Disputes"],
   ["/admin/promotions", "Promotions"],
   ["/admin/notifications", "Notifications"],
+  ["/admin/audit", "Audit log"],
+  ["/admin/monitoring", "Monitoring"],
   ["/admin", "Admin"],
 ];
 
 export function titleFor(pathname: string): string {
   if (pathname === "/") return "Home";
-  if (/^\/seller\/products\/[^/]+\/edit/.test(pathname)) return "Edit listing";
+  if (/^\/admin\/products\/[^/]+\/edit/.test(pathname)) return "Edit listing";
   const match = TITLES.filter(
     ([p]) => pathname === p || pathname.startsWith(`${p}/`),
   ).sort((a, b) => b[0].length - a[0].length)[0];

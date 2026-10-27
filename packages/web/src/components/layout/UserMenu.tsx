@@ -48,7 +48,6 @@ export function UserMenu({
   }, [open]);
 
   const isAdmin = user.role === "admin";
-  const isSeller = user.role === "seller" || isAdmin;
   const links: UserMenuLink[] =
     customLinks ??
     (isAdmin
@@ -56,17 +55,6 @@ export function UserMenu({
       : [
           { href: "/profile", label: "Profile", icon: "user" },
           { href: "/orders", label: "Orders", icon: "bag" },
-          isSeller
-            ? {
-                href: "/profile/seller",
-                label: "Store settings",
-                icon: "store",
-              }
-            : {
-                href: "/profile/seller",
-                label: "Start selling",
-                icon: "store",
-              },
         ]);
 
   return (

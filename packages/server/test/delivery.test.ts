@@ -3,7 +3,6 @@ import {
   api,
   createMarket,
   createProduct,
-  createSeller,
   createUser,
   missingId,
   ok,
@@ -11,16 +10,13 @@ import {
   RUN,
   Tracker,
   type Market,
-  type TestSeller,
 } from "./helpers";
 
 const t = new Tracker();
 let m: Market;
-let otherSeller: TestSeller;
 
 beforeAll(async () => {
   m = await createMarket(t);
-  otherSeller = await createSeller(t);
 });
 afterAll(() => t.cleanup());
 
@@ -128,7 +124,7 @@ describe("admin zones", () => {
 
   test("zone management is admin-only", async () => {
     const res = await api("POST", "/delivery/admin/zones", {
-      token: m.seller.token,
+      token: m.buyer.token,
       body: {
         name: "Nope Zone",
         county: "Nope",
@@ -149,12 +145,9 @@ describe("hub fulfilment", () => {
     ok<{ order: { status: string }; items: Item[] }>(
       await api("GET", `/orders/me/${orderId}`, { token: m.buyer.token }),
     );
-  const setItem = (token: string, itemId: string, status: string) =>
-    api("PATCH", `/orders/seller/items/${itemId}/status`, {
-      token,
-      body: { status },
-    });
   const admin = () => m.admin.token;
+  const cancelItem = (itemId: string, token = admin()) =>
+    api("PATCH", `/orders/admin/items/${itemId}/cancel`, { token });
 
   let orderId: string;
   let itemId: string;
@@ -165,38 +158,16 @@ describe("hub fulfilment", () => {
     ({ orderId, orderItemId: itemId } = await placePaidOrder(m));
   });
 
-  test("payment confirms the items and tells the seller once where to drop off", async () => {
+  test("payment confirms the items", async () => {
     expect((await order(orderId)).items[0].status).toBe("confirmed");
-    const ref = orderId.slice(-8).toUpperCase();
-    const forOrder = (await notes(m.seller.token)).filter(
-      (n) => n.type === "seller_new_order" && n.body.includes(ref),
-    );
-    expect(forOrder).toHaveLength(1);
-    expect(forOrder[0].body).toContain("Nairobi CBD");
   });
 
-  test("seller packs and drops off without notifying the buyer", async () => {
-    const before = (await notes(m.buyer.token)).length;
-    ok(await setItem(m.seller.token, itemId, "processing"));
-    ok(await setItem(m.seller.token, itemId, "dropped_off"));
-    expect((await notes(m.buyer.token)).length).toBe(before);
-    const o = await order(orderId);
-    expect(o.items[0].status).toBe("dropped_off");
-    expect(o.order.status).toBe("processing");
-  });
-
-  test("sellers can't move backwards or do the hub's steps", async () => {
-    expect((await setItem(m.seller.token, itemId, "processing")).status).toBe(
-      400,
-    );
-    for (const s of ["at_hub", "shipped", "delivered"])
-      expect((await setItem(m.seller.token, itemId, s)).status).toBe(400);
-  });
-
-  test("another store can't touch my item", async () => {
-    expect((await setItem(otherSeller.token, itemId, "cancelled")).status).toBe(
-      404,
-    );
+  test("stores have no fulfilment steps any more: Soko runs the hub", async () => {
+    const old = await api("PATCH", `/orders/seller/items/${itemId}/status`, {
+      token: m.buyer.token,
+      body: { status: "dropped_off" },
+    });
+    expect(old.status).toBe(404);
   });
 
   test("the order can't ship before its items reach the hub", async () => {
@@ -344,26 +315,20 @@ describe("hub fulfilment", () => {
     const ship = await api(
       "POST",
       `/delivery/admin/orders/${orderId}/shipment`,
-      { token: m.seller.token, body: { courier: "self" } },
+      { token: m.buyer.token, body: { courier: "self" } },
     );
     expect(ship.status).toBe(403);
     const receive = await api(
       "PATCH",
       `/orders/admin/items/${itemId}/received`,
-      { token: m.seller.token },
+      { token: m.buyer.token },
     );
     expect(receive.status).toBe(403);
-    // The old seller shipment endpoint is gone.
-    const old = await api("POST", "/delivery/seller/shipments", {
-      token: m.seller.token,
-      body: { orderItemId: itemId, courier: "self" },
-    });
-    expect(old.status).toBe(404);
+    expect((await cancelItem(itemId, m.buyer.token)).status).toBe(403);
   });
 
-  test("one store cancels its item: buyer told once, the rest still ships", async () => {
-    // An order with items from two stores.
-    const second = await createProduct(otherSeller, m.category.id, {
+  test("Soko cancels one item it can't supply: buyer told once, the rest still ships", async () => {
+    const second = await createProduct(t, m.admin, m.category.id, {
       stock: 5,
     });
     ok(
@@ -383,7 +348,7 @@ describe("hub fulfilment", () => {
     const before = (await notes(m.buyer.token)).filter(
       (n) => n.type === "order_item_cancelled",
     ).length;
-    ok(await setItem(otherSeller.token, theirs.id, "cancelled"));
+    ok(await cancelItem(theirs.id));
     const after = (await notes(m.buyer.token)).filter(
       (n) => n.type === "order_item_cancelled",
     ).length;
@@ -412,7 +377,7 @@ describe("hub fulfilment", () => {
 
   test("an order whose every item is cancelled becomes cancelled", async () => {
     const placed = await placePaidOrder(m);
-    ok(await setItem(m.seller.token, placed.orderItemId, "cancelled"));
+    ok(await cancelItem(placed.orderItemId));
     expect((await order(placed.orderId)).order.status).toBe("cancelled");
     const types = (await notes(m.buyer.token)).map((n) => n.type);
     expect(types).toContain("order_cancelled");

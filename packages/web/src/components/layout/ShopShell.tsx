@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import { useSyncSellerProfile } from "@/store/seller.store";
 import { useAuthStore } from "@/store/auth.store";
 import { isSessionRejected, refreshAccessToken } from "@/lib/api";
 import { onAuthHydrated } from "@/lib/session";
@@ -31,8 +30,6 @@ export function ShopShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   // The home page lays out its own full-width sections.
   const fullBleed = pathname === "/";
-
-  useSyncSellerProfile();
 
   useEffect(() => {
     const restore = async () => {

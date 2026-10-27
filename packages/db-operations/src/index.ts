@@ -28,3 +28,4 @@ export * from "./functional/search/search.repository";
 export * from "./functional/cart/stock.repository";
 export * from "./pagination";
 export * from "./functional/product/catalogue.repository";
+export * from "./functional/audit/requestLog.repository";

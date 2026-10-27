@@ -2,6 +2,7 @@ import Elysia, { t } from "elysia";
 import { pageParams, paged } from "../../lib/paging";
 import { adminPlugin } from "../../middleware/auth.middleware";
 import {
+  cancelOrderItem,
   getOrdersByStatus,
   getOrdersByPaymentStatus,
   adminUpdateOrderStatus,
@@ -63,6 +64,27 @@ export const GetHubOrders = new Elysia()
   });
 
 // Hub: an item has been handed in.
+export const CancelOrderItem = new Elysia()
+  .use(adminPlugin)
+  .patch("/admin/items/:orderItemId/cancel", async (ctx) => {
+    const { params, set } = ctx as any;
+    const result = await cancelOrderItem(params.orderItemId);
+
+    if (result === "order_item_not_found") {
+      set.status = 404;
+      return { success: false, message: "Order item not found." };
+    }
+    if (result === "invalid_transition") {
+      set.status = 400;
+      return {
+        success: false,
+        message: "Shipped, delivered or cancelled items can't be cancelled.",
+      };
+    }
+
+    return { success: true, message: "Item cancelled." };
+  });
+
 export const ReceiveItemAtHub = new Elysia()
   .use(adminPlugin)
   .patch("/admin/items/:orderItemId/received", async (ctx) => {

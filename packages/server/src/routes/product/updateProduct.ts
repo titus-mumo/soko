@@ -1,22 +1,18 @@
 import Elysia, { t } from "elysia";
 import { CONTACT_INFO_MESSAGE } from "../../lib/contact-filter";
-import { sellerPlugin } from "../../middleware/auth.middleware";
+import { adminPlugin } from "../../middleware/auth.middleware";
 import {
   updateProduct,
   publishProduct,
   unpublishProduct,
 } from "../../services/product.service";
 
-export const UpdateProduct = new Elysia().use(sellerPlugin).patch(
+export const UpdateProduct = new Elysia().use(adminPlugin).patch(
   "/:productId",
   async (ctx) => {
-    const { userId, params, body, set } = ctx as any;
-    const result = await updateProduct(userId, params.productId, body);
+    const { params, body, set } = ctx as any;
+    const result = await updateProduct(params.productId, body);
 
-    if (result === "seller_not_found") {
-      set.status = 404;
-      return { success: false, message: "Seller profile not found." };
-    }
     if (result === "product_not_found") {
       set.status = 404;
       return { success: false, message: "Product not found." };
@@ -50,15 +46,11 @@ export const UpdateProduct = new Elysia().use(sellerPlugin).patch(
 );
 
 export const PublishProduct = new Elysia()
-  .use(sellerPlugin)
+  .use(adminPlugin)
   .patch("/:productId/publish", async (ctx) => {
-    const { userId, params, set } = ctx as any;
-    const result = await publishProduct(userId, params.productId);
+    const { params, set } = ctx as any;
+    const result = await publishProduct(params.productId);
 
-    if (result === "seller_not_found") {
-      set.status = 404;
-      return { success: false, message: "Seller profile not found." };
-    }
     if (result === "product_not_found") {
       set.status = 404;
       return { success: false, message: "Product not found." };
@@ -68,15 +60,11 @@ export const PublishProduct = new Elysia()
   });
 
 export const UnpublishProduct = new Elysia()
-  .use(sellerPlugin)
+  .use(adminPlugin)
   .patch("/:productId/unpublish", async (ctx) => {
-    const { userId, params, set } = ctx as any;
-    const result = await unpublishProduct(userId, params.productId);
+    const { params, set } = ctx as any;
+    const result = await unpublishProduct(params.productId);
 
-    if (result === "seller_not_found") {
-      set.status = 404;
-      return { success: false, message: "Seller profile not found." };
-    }
     if (result === "product_not_found") {
       set.status = 404;
       return { success: false, message: "Product not found." };

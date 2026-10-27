@@ -83,12 +83,11 @@ export class UserRepository {
 
     if (!res) return "user_not_found";
 
-    if (res.passwordHash) {
-      if (!pass) return "incorrect_password";
-
-      const isPasswordCorrect = Bun.password.verifySync(pass, res.passwordHash);
-      if (!isPasswordCorrect) return "incorrect_password";
-    }
+    // No password set (Google sign-ups, the house store account): password
+    // sign-in isn't available. Never let a missing hash mean "any password".
+    if (!res.passwordHash || !pass) return "incorrect_password";
+    if (!Bun.password.verifySync(pass, res.passwordHash))
+      return "incorrect_password";
 
     const { passwordHash: _passwordHash, ...publicUser } = res;
     return publicUser as PublicUser;
@@ -105,15 +104,32 @@ export class UserRepository {
 
     if (!res) return "user_not_found";
 
-    if (res.passwordHash) {
-      if (!pass) return "incorrect_password";
-
-      const isPasswordCorrect = Bun.password.verifySync(pass, res.passwordHash);
-      if (!isPasswordCorrect) return "incorrect_password";
-    }
+    // No password set (Google sign-ups, the house store account): password
+    // sign-in isn't available. Never let a missing hash mean "any password".
+    if (!res.passwordHash || !pass) return "incorrect_password";
+    if (!Bun.password.verifySync(pass, res.passwordHash))
+      return "incorrect_password";
 
     const { passwordHash: _passwordHash, ...publicUser } = res;
     return publicUser as PublicUser;
+  }
+
+  /** Ids of active admin accounts (for alert notifications). */
+  async findAdminIds(): Promise<string[]> {
+    const rows = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(and(eq(usersTable.role, "admin"), isNull(usersTable.deletedAt)));
+    return rows.map((r) => r.id);
+  }
+
+  /** Whether the account has a password (Google sign-ups start without). */
+  async hasPassword(id: string): Promise<boolean> {
+    const [res] = await db
+      .select({ hash: usersTable.passwordHash })
+      .from(usersTable)
+      .where(and(eq(usersTable.id, id), isNull(usersTable.deletedAt)));
+    return !!res?.hash;
   }
 
   async findUserById(id: string): Promise<PublicUser | null> {

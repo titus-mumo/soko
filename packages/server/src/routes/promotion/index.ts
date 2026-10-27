@@ -2,16 +2,11 @@ import Elysia from "elysia";
 import { PreviewPromoCode } from "./publicPromotions";
 import { ApplyPromoCode } from "./buyerPromotions";
 import {
-  GetSellerPromotions,
-  CreatePromotion,
-  UpdatePromotion,
+  GetPlatformPromotions,
+  CreatePlatformPromotion,
   ActivatePromotion,
   DeactivatePromotion,
   DeletePromotion,
-} from "./sellerPromotions";
-import {
-  GetPlatformPromotions,
-  CreatePlatformPromotion,
 } from "./adminPromotions";
 
 export const promotionRoutes = new Elysia().group("/promotions", (app) =>
@@ -20,16 +15,12 @@ export const promotionRoutes = new Elysia().group("/promotions", (app) =>
     .use(PreviewPromoCode)
     // Buyer
     .use(ApplyPromoCode)
-    // Seller
-    .use(GetSellerPromotions)
-    .use(CreatePromotion)
-    .use(UpdatePromotion)
-    .use(ActivatePromotion)
-    .use(DeactivatePromotion)
-    .use(DeletePromotion)
     // Admin
     .use(GetPlatformPromotions)
     .use(CreatePlatformPromotion)
+    .use(ActivatePromotion)
+    .use(DeactivatePromotion)
+    .use(DeletePromotion)
     .onError(({ code, error, set }) => {
       if (code === "VALIDATION") {
         set.status = 400;

@@ -2,14 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { adoptGuestCart } from "@/lib/guest-cart";
-import { useSyncSellerProfile } from "@/store/seller.store";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth.store";
 import { onAuthHydrated, restoreSession } from "@/lib/session";
 import { syncCartTotals, syncUnreadCount } from "@/lib/sync";
 import { AppFrame } from "./AppFrame";
 import { AppShellSkeleton } from "./AppShellSkeleton";
-import { isSharedPath, setSessionHint } from "@/lib/session-hint";
+import { isSharedPath } from "@/lib/session-hint";
 
 const UNREAD_POLL_MS = 60_000;
 
@@ -20,6 +19,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   // Stays false until Zustand has rehydrated from localStorage AND any
   // needed silent refresh has finished — never redirect before then.
   const [ready, setReady] = useState(false);
+  // Admins on the shop pages keep their own (admin) navigation.
+  const [variant, setVariant] = useState<"app" | "admin">("app");
 
   useEffect(() => {
     let cancelled = false;
@@ -36,11 +37,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         else router.replace(`/login?next=${encodeURIComponent(pathname)}`);
         return;
       }
-      // Admins have their own area.
+      // Admins browse the shop pages with the admin sidebar; the shopper's
+      // account pages (orders, cart checkout…) aren't theirs.
       if (user.role === "admin") {
         if (isSharedPath(pathname)) {
-          setSessionHint(false);
-          window.location.reload();
+          setVariant("admin");
+          setReady(true);
         } else {
           router.replace("/admin");
         }
@@ -62,9 +64,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- runs once per mount
 
-  // Seller store id, so product cards can recognise own listings.
-  useSyncSellerProfile(ready);
-
   // Populate the nav badges once authenticated, and keep unread fresh.
   useEffect(() => {
     if (!ready) return;
@@ -76,5 +75,5 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   if (!ready) return <AppShellSkeleton label="Loading your account" />;
 
-  return <AppFrame>{children}</AppFrame>;
+  return <AppFrame variant={variant}>{children}</AppFrame>;
 }

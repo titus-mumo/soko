@@ -46,7 +46,7 @@ describe("search suggestions", () => {
   });
 
   test("leaves out drafts", async () => {
-    const draft = await createProduct(m.seller, m.category.id, {
+    const draft = await createProduct(t, m.admin, m.category.id, {
       publish: false,
     });
     const s = await suggest(draft.slug);

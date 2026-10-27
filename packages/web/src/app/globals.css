@@ -106,3 +106,27 @@
     }
   }
 }
+
+/* ── Charts (admin monitoring) ────────────────────────────────────────────
+   Validated categorical steps per mode; status colours are fixed across
+   themes and always ship with a label. Text never wears a series colour. */
+.viz {
+  --viz-surface: #ffffff;
+  --viz-grid: #e4e4e7;
+  --viz-axis: #d4d4d8;
+  --viz-muted: #71717a;
+  --viz-series-1: #2a78d6;
+  --viz-series-2: #eb6834;
+  --viz-series-3: #1baf7a;
+  --viz-serious: #ec835a;
+  --viz-critical: #d03b3b;
+}
+.dark .viz {
+  --viz-surface: #18181b;
+  --viz-grid: #27272a;
+  --viz-axis: #3f3f46;
+  --viz-muted: #a1a1aa;
+  --viz-series-1: #3987e5;
+  --viz-series-2: #d95926;
+  --viz-series-3: #199e70;
+}

@@ -2,12 +2,8 @@ import { getRepositories } from "../lib/repositories";
 import type { PageParams } from "db-operations";
 import type { NewPromotion } from "db-operations";
 
-const {
-  promotionRepository,
-  orderRepository,
-  sellerProfileRepository,
-  notificationRepository,
-} = getRepositories();
+const { promotionRepository, orderRepository, notificationRepository } =
+  getRepositories();
 
 // ─────────────────────────────────────────
 // Helpers
@@ -87,152 +83,29 @@ function toDate(value: Date | string | null | undefined) {
   return date;
 }
 
-// A seller may only touch their own promotions. Someone else's (or a
-// platform-wide one) reads as not found, so ids can't be probed.
-async function ownsPromotion(sellerId: string, promotionId: string) {
-  const promotion = await promotionRepository.findPromotionById(promotionId);
-  return promotion !== "promotion_not_found" && promotion.sellerId === sellerId;
-}
+// ─────────────────────────────────────────
+// Admin management (stores can no longer run their own promotions)
+// ─────────────────────────────────────────
 
-export async function createPromotion(
-  userId: string,
-  data: Pick<
-    NewPromotion,
-    "code" | "type" | "value" | "minOrderAmount" | "maxUses" | "expiresAt"
-  >,
-): Promise<
-  | "seller_not_found"
-  | "code_taken"
-  | Awaited<ReturnType<typeof promotionRepository.insertPromotion>>
-> {
-  const seller =
-    await sellerProfileRepository.findSellerProfileByUserId(userId);
-  if (seller === "seller_not_found") return "seller_not_found";
-
-  // Ensure promo code is unique across the platform.
-  const existing = await promotionRepository.findPromotionByCode(data.code);
-  if (existing !== "promotion_not_found") return "code_taken";
-
-  return await promotionRepository.insertPromotion({
-    sellerId: seller.id,
-    ...data,
-    expiresAt: toDate(data.expiresAt),
-  });
-}
-
-export async function getSellerPromotions(userId: string, page?: PageParams) {
-  const seller =
-    await sellerProfileRepository.findSellerProfileByUserId(userId);
-  if (seller === "seller_not_found") return "seller_not_found" as const;
-
-  return await promotionRepository.pagePromotions(seller.id, page);
-}
-
-export async function updatePromotion(
-  userId: string,
+export async function setPromotionActive(
   promotionId: string,
-  data: Partial<
-    Pick<
-      NewPromotion,
-      | "code"
-      | "type"
-      | "value"
-      | "minOrderAmount"
-      | "maxUses"
-      | "expiresAt"
-      | "isActive"
-    >
-  >,
-): Promise<
-  | "seller_not_found"
-  | "promotion_not_found"
-  | "code_taken"
-  | Awaited<ReturnType<typeof promotionRepository.updatePromotion>>
-> {
-  const seller =
-    await sellerProfileRepository.findSellerProfileByUserId(userId);
-  if (seller === "seller_not_found") return "seller_not_found";
-
-  if (!(await ownsPromotion(seller.id, promotionId))) {
-    return "promotion_not_found";
-  }
-
-  // Ensure the new code isn't already taken by another promotion.
-  if (data.code) {
-    const existing = await promotionRepository.findPromotionByCode(data.code);
-    if (
-      existing !== "promotion_not_found" &&
-      (existing as any).id !== promotionId
-    ) {
-      return "code_taken";
-    }
-  }
-
-  return await promotionRepository.updatePromotion(promotionId, {
-    ...data,
-    ...(data.expiresAt !== undefined && { expiresAt: toDate(data.expiresAt) }),
-  });
-}
-
-export async function activatePromotion(
-  userId: string,
-  promotionId: string,
-): Promise<"seller_not_found" | "promotion_not_found" | "promotion_activated"> {
-  const seller =
-    await sellerProfileRepository.findSellerProfileByUserId(userId);
-  if (seller === "seller_not_found") return "seller_not_found";
-  if (!(await ownsPromotion(seller.id, promotionId))) {
-    return "promotion_not_found";
-  }
-
-  const result = await promotionRepository.activatePromotion(promotionId);
-  if (result === "promotion_not_found") return "promotion_not_found";
-
-  return "promotion_activated";
-}
-
-export async function deactivatePromotion(
-  userId: string,
-  promotionId: string,
-): Promise<
-  "seller_not_found" | "promotion_not_found" | "promotion_deactivated"
-> {
-  const seller =
-    await sellerProfileRepository.findSellerProfileByUserId(userId);
-  if (seller === "seller_not_found") return "seller_not_found";
-  if (!(await ownsPromotion(seller.id, promotionId))) {
-    return "promotion_not_found";
-  }
-
-  const result = await promotionRepository.deactivatePromotion(promotionId);
-  if (result === "promotion_not_found") return "promotion_not_found";
-
-  return "promotion_deactivated";
+  active: boolean,
+): Promise<"promotion_not_found" | "promotion_updated"> {
+  const result = active
+    ? await promotionRepository.activatePromotion(promotionId)
+    : await promotionRepository.deactivatePromotion(promotionId);
+  return result === "promotion_not_found"
+    ? "promotion_not_found"
+    : "promotion_updated";
 }
 
 export async function deletePromotion(
-  userId: string,
   promotionId: string,
-): Promise<"seller_not_found" | "promotion_not_found" | "promotion_deleted"> {
-  const seller =
-    await sellerProfileRepository.findSellerProfileByUserId(userId);
-  if (seller === "seller_not_found") return "seller_not_found";
-  if (!(await ownsPromotion(seller.id, promotionId))) {
-    return "promotion_not_found";
-  }
-
+): Promise<"promotion_not_found" | "promotion_deleted"> {
   const result = await promotionRepository.softDeletePromotion(promotionId);
-  if (!result) return "promotion_not_found";
-
-  return "promotion_deleted";
+  return result ? "promotion_deleted" : "promotion_not_found";
 }
 
-// ─────────────────────────────────────────
-// Checkout — Apply Promo Code
-// ─────────────────────────────────────────
-
-// Validates and applies a promo code to an order at checkout.
-// Call this before finalising the order total.
 export async function applyPromoCode(
   userId: string,
   orderId: string,

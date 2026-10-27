@@ -47,7 +47,7 @@ export function LoginForm() {
     <div className="w-full max-w-sm animate-fade-in">
       <AuthHeading
         title="Welcome back"
-        subtitle="Sign in to track orders, check out faster and manage your store."
+        subtitle="Sign in to track orders and check out faster."
       />
 
       <div className="space-y-3">

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useSessionUser } from "@/store/auth.store";
 import { buttonClasses } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/utils";
@@ -22,16 +21,14 @@ interface Slide {
  * and stays put for people who prefer reduced motion. Transitions are CSS.
  */
 export function HeroCarousel({ counties }: { counties: number }) {
-  const user = useSessionUser();
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
 
   const slides: Slide[] = [
     {
       eyebrow: "Kenya's marketplace",
-      headline: "Shop from Kenya's best sellers",
-      subtext:
-        "Electronics, fashion and home goods from local stores. Pay with M-Pesa.",
+      headline: "Shop the best of Kenya, delivered",
+      subtext: "Electronics, fashion and home goods. Pay with M-Pesa.",
       cta: "Browse products",
       href: "/products",
     },
@@ -46,11 +43,11 @@ export function HeroCarousel({ counties }: { counties: number }) {
       href: "/delivery",
     },
     {
-      eyebrow: "Sell on Soko",
-      headline: "Start selling today — it's free",
-      subtext: "List your products in minutes and get paid through M-Pesa.",
-      cta: "Become a seller",
-      href: user ? "/profile/seller" : "/register",
+      eyebrow: "M-Pesa",
+      headline: "Pay with M-Pesa, no card needed",
+      subtext: "Approve the prompt on your phone and your order is on its way.",
+      cta: "Start shopping",
+      href: "/products",
     },
   ];
 

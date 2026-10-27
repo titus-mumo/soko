@@ -1,5 +1,5 @@
 import Elysia, { t } from "elysia";
-import { sellerPlugin } from "../../middleware/auth.middleware";
+import { adminPlugin } from "../../middleware/auth.middleware";
 import {
   addVariant,
   updateVariant,
@@ -7,16 +7,12 @@ import {
   deleteVariant,
 } from "../../services/product.service";
 
-export const AddVariant = new Elysia().use(sellerPlugin).post(
+export const AddVariant = new Elysia().use(adminPlugin).post(
   "/:productId/variants",
   async (ctx) => {
-    const { userId, params, body, set } = ctx as any;
-    const result = await addVariant(userId, params.productId, body);
+    const { params, body, set } = ctx as any;
+    const result = await addVariant(params.productId, body);
 
-    if (result === "seller_not_found") {
-      set.status = 404;
-      return { success: false, message: "Seller profile not found." };
-    }
     if (result === "product_not_found") {
       set.status = 404;
       return { success: false, message: "Product not found." };
@@ -38,21 +34,16 @@ export const AddVariant = new Elysia().use(sellerPlugin).post(
   },
 );
 
-export const UpdateVariant = new Elysia().use(sellerPlugin).patch(
+export const UpdateVariant = new Elysia().use(adminPlugin).patch(
   "/:productId/variants/:variantId",
   async (ctx) => {
-    const { userId, params, body, set } = ctx as any;
+    const { params, body, set } = ctx as any;
     const result = await updateVariant(
-      userId,
       params.productId,
       params.variantId,
       body,
     );
 
-    if (result === "seller_not_found") {
-      set.status = 404;
-      return { success: false, message: "Seller profile not found." };
-    }
     if (result === "variant_not_found") {
       set.status = 404;
       return { success: false, message: "Variant not found." };
@@ -73,7 +64,7 @@ export const UpdateVariant = new Elysia().use(sellerPlugin).patch(
   },
 );
 
-export const AdjustVariantStock = new Elysia().use(sellerPlugin).patch(
+export const AdjustVariantStock = new Elysia().use(adminPlugin).patch(
   "/:productId/variants/:variantId/stock",
   async (ctx) => {
     const { params, body, set } = ctx as any;
@@ -94,19 +85,11 @@ export const AdjustVariantStock = new Elysia().use(sellerPlugin).patch(
 );
 
 export const DeleteVariant = new Elysia()
-  .use(sellerPlugin)
+  .use(adminPlugin)
   .delete("/:productId/variants/:variantId", async (ctx) => {
-    const { userId, params, set } = ctx as any;
-    const result = await deleteVariant(
-      userId,
-      params.productId,
-      params.variantId,
-    );
+    const { params, set } = ctx as any;
+    const result = await deleteVariant(params.productId, params.variantId);
 
-    if (result === "seller_not_found") {
-      set.status = 404;
-      return { success: false, message: "Seller profile not found." };
-    }
     if (!result) {
       set.status = 404;
       return { success: false, message: "Variant not found." };

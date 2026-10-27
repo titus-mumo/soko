@@ -32,6 +32,34 @@ export class ProductRepository {
     return Object.fromEntries(rows.map((r) => [r.status, Number(r.count)]));
   }
 
+  /** How many listings (all stores) are at each status. */
+  async countByStatus(): Promise<Partial<Record<ProductStatus, number>>> {
+    const rows = await db
+      .select({
+        status: productsTable.status,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(productsTable)
+      .where(isNull(productsTable.deletedAt))
+      .groupBy(productsTable.status);
+    return Object.fromEntries(rows.map((r) => [r.status, r.count]));
+  }
+
+  // Paged, newest first: every listing (any store), optionally at one status.
+  async pageProducts(
+    params?: PageParams,
+    status?: ProductStatus,
+  ): Promise<Page<Product>> {
+    return pageNewestFirst<Product>(
+      productsTable,
+      and(
+        isNull(productsTable.deletedAt),
+        status ? eq(productsTable.status, status) : undefined,
+      ),
+      params,
+    );
+  }
+
   // Paged, newest first: all of a seller's own listings (any status).
   async pageProductsBySellerId(
     sellerId: string,

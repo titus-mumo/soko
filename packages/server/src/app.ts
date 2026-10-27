@@ -17,6 +17,9 @@ import { promotionRoutes } from "./routes/promotion";
 import { notificationRoutes } from "./routes/notification";
 import { scrub } from "./lib/views";
 import { rateLimit } from "./lib/rate-limit";
+import { auditLog } from "./lib/audit";
+import { auditRoutes } from "./routes/audit";
+import { uploadRoutes } from "./routes/upload";
 
 const checkSoko = "soko server is running!";
 
@@ -36,6 +39,9 @@ const App = new Elysia()
       credentials: true, // Enable if your frontend sends cookies or auth headers
     }),
   ) // Add CORS middleware
+  // Every request goes in the admin audit log (lib/audit.ts) — first, so
+  // requests the rate limiter turns away are recorded too.
+  .use(auditLog)
   // Before routing, so floods are turned away cheaply (lib/rate-limit.ts).
   .use(rateLimit)
   // Log the request line only: response bodies carry tokens and personal data.
@@ -110,6 +116,8 @@ const App = new Elysia()
   .use(disputeRoutes)
   .use(promotionRoutes)
   .use(notificationRoutes)
-  .use(searchRoutes);
+  .use(searchRoutes)
+  .use(auditRoutes)
+  .use(uploadRoutes);
 
 export default App;

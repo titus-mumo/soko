@@ -5,10 +5,8 @@ import type {
   Order,
   OrderDetail,
   OrderItem,
-  SellerOrderItem,
   OrderStatus,
   PlacedOrder,
-  SellerItemStatus,
   Shipment,
 } from "./types";
 
@@ -59,53 +57,12 @@ export async function cancelOrder(id: string): Promise<void> {
   await api.patch(`/orders/me/${id}/cancel`);
 }
 
-// ─── Seller ──────────────────────────────────────────────────────────────────
-
-/** One page of the seller's order items, newest first. */
-export function getSellerOrderItems(
-  page?: PageRequest,
-): Promise<Paged<SellerOrderItem>> {
-  return getPage<SellerOrderItem>("/orders/seller/items", page);
-}
-
-/** One page of the seller's items at one status. */
-export function getSellerOrderItemsByStatus(
-  status: OrderStatus,
-  page?: PageRequest,
-): Promise<Paged<SellerOrderItem>> {
-  return getPage<SellerOrderItem>(`/orders/seller/items/${status}`, page);
-}
-
-export interface SellerStats {
-  countsByStatus: Partial<Record<OrderStatus, number>>;
-  /** Delivered revenue, decimal string. */
-  revenue: string;
-  ordersToday: number;
-  ordersYesterday: number;
-  /** Sales per day, oldest first (14 days). */
-  daily: number[];
-  toDropOff: number;
-  totalSales: number;
-  listings: { active: number; draft: number; total: number };
-}
-
-/** The seller dashboard's numbers, computed by the API. */
-export async function getSellerStats(): Promise<SellerStats> {
-  const { data } = await api.get<ApiResponse<SellerStats>>(
-    "/orders/seller/stats",
-  );
-  return data.data;
-}
-
-/** Seller: packing, dropped off at the hub, or cancelled. */
-export async function updateOrderItemStatus(
-  orderItemId: string,
-  status: SellerItemStatus,
-): Promise<void> {
-  await api.patch(`/orders/seller/items/${orderItemId}/status`, { status });
-}
-
 // ─── Hub (admin) ─────────────────────────────────────────────────────────────
+
+/** Cancels one item Soko can't supply; its stock goes back, the buyer is told. */
+export async function cancelOrderItem(orderItemId: string): Promise<void> {
+  await api.patch(`/orders/admin/items/${orderItemId}/cancel`);
+}
 
 export interface HubOrder {
   order: Order;

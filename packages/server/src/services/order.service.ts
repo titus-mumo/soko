@@ -236,130 +236,6 @@ export async function cancelOrder(
 }
 
 // ─────────────────────────────────────────
-// Seller
-// ─────────────────────────────────────────
-
-// Routes pass the authenticated user's id, but order items reference the
-// seller profile id. Returns null when the user has no seller profile.
-async function resolveSellerProfileId(userId: string) {
-  const seller =
-    await sellerProfileRepository.findSellerProfileByUserId(userId);
-  return seller === "seller_not_found" ? null : seller.id;
-}
-
-/**
- * The seller dashboard's numbers, computed in the database rather than from
- * every order item the store has ever had.
- */
-export async function getSellerStats(userId: string) {
-  const seller =
-    await sellerProfileRepository.findSellerProfileByUserId(userId);
-  if (seller === "seller_not_found") return "seller_not_found" as const;
-  const [items, listings] = await Promise.all([
-    orderItemRepository.sellerStats(seller.id),
-    productRepository.countBySellerAndStatus(seller.id),
-  ]);
-  return {
-    ...items,
-    // Paid items still to take to the hub.
-    toDropOff:
-      (items.countsByStatus.confirmed ?? 0) +
-      (items.countsByStatus.processing ?? 0),
-    totalSales: seller.totalSales,
-    listings: {
-      active: listings.active ?? 0,
-      draft: listings.draft ?? 0,
-      total: Object.values(listings).reduce((a, b) => a + (b ?? 0), 0),
-    },
-  };
-}
-
-export async function getSellerOrderItems(userId: string, page?: PageParams) {
-  const sellerId = await resolveSellerProfileId(userId);
-  if (!sellerId) return { items: [], nextCursor: null };
-  return await orderItemRepository.pageItemsBySellerId(
-    sellerId,
-    undefined,
-    page,
-  );
-}
-
-export async function getSellerOrderItemsByStatus(
-  userId: string,
-  status: OrderStatus,
-  page?: PageParams,
-) {
-  const sellerId = await resolveSellerProfileId(userId);
-  if (!sellerId) return { items: [], nextCursor: null };
-  return await orderItemRepository.pageItemsBySellerId(sellerId, status, page);
-}
-
-/** Steps a seller may take, by current item status. */
-const SELLER_TRANSITIONS: Partial<Record<OrderStatus, OrderStatus[]>> = {
-  pending: ["cancelled"],
-  confirmed: ["processing", "dropped_off", "cancelled"],
-  processing: ["dropped_off", "cancelled"],
-};
-
-export type SellerItemStatus = "processing" | "dropped_off" | "cancelled";
-
-/**
- * A seller moves their own item: packing → dropped off at the hub, or
- * cancelled. Receiving at the hub, shipping and delivery belong to Soko.
- * The buyer only hears about cancellations — progress is shown on the
- * order, not item by item.
- */
-export async function updateOrderItemStatus(
-  userId: string,
-  orderItemId: string,
-  status: SellerItemStatus,
-): Promise<"order_item_not_found" | "invalid_transition" | "status_updated"> {
-  const sellerId = await resolveSellerProfileId(userId);
-  if (!sellerId) return "order_item_not_found";
-
-  const item = await orderItemRepository.findOrderItemById(orderItemId);
-  if (item === "order_item_not_found" || item.sellerId !== sellerId)
-    return "order_item_not_found";
-  if (!SELLER_TRANSITIONS[item.status as OrderStatus]?.includes(status))
-    return "invalid_transition";
-
-  await orderItemRepository.updateOrderItemStatus(
-    orderItemId,
-    sellerId,
-    status,
-  );
-
-  if (status === "cancelled") {
-    await productVariantRepository.adjustStock(
-      item.productVariantId,
-      item.quantity,
-    );
-  }
-
-  const synced = await syncOrderStatus(item.orderId);
-  if (synced && status === "cancelled") {
-    const { order, next } = synced;
-    if (next === "cancelled") {
-      await notifyBuyer(
-        order.buyerId,
-        "order_cancelled",
-        "Order cancelled",
-        `Your order ${orderRef(order.id)} has been cancelled because its items are no longer available.`,
-      );
-    } else {
-      await notifyBuyer(
-        order.buyerId,
-        "order_item_cancelled",
-        "An item was cancelled",
-        `One item in your order ${orderRef(order.id)} is no longer available and was removed. The rest of your order is on track.`,
-      );
-    }
-  }
-
-  return "status_updated";
-}
-
-// ─────────────────────────────────────────
 // Hub (admin)
 // ─────────────────────────────────────────
 
@@ -444,13 +320,65 @@ export async function receiveItemAtHub(
 ): Promise<"order_item_not_found" | "invalid_transition" | "item_received"> {
   const item = await orderItemRepository.findOrderItemById(orderItemId);
   if (item === "order_item_not_found") return "order_item_not_found";
-  // Sellers may hand items in without marking them first.
+  // Soko fulfils: items go to the hub straight from paid (or any earlier
+  // hand-in step on older orders).
   if (!["confirmed", "processing", "dropped_off"].includes(item.status))
     return "invalid_transition";
 
   await orderItemRepository.setOrderItemStatus(orderItemId, "at_hub");
   await syncOrderStatus(item.orderId);
   return "item_received";
+}
+
+/** Statuses an item can be cancelled from: anything before it ships. */
+const CANCELLABLE_ITEM: OrderStatus[] = [
+  "pending",
+  "confirmed",
+  "processing",
+  "dropped_off",
+  "at_hub",
+];
+
+/**
+ * Soko can't supply one item of an order (damaged, missing): cancel just
+ * that line, put its stock back, and tell the buyer once. If it was the
+ * last live item, the whole order is cancelled. Refunds are handled
+ * separately.
+ */
+export async function cancelOrderItem(
+  orderItemId: string,
+): Promise<"order_item_not_found" | "invalid_transition" | "item_cancelled"> {
+  const item = await orderItemRepository.findOrderItemById(orderItemId);
+  if (item === "order_item_not_found") return "order_item_not_found";
+  if (!CANCELLABLE_ITEM.includes(item.status as OrderStatus))
+    return "invalid_transition";
+
+  await orderItemRepository.setOrderItemStatus(orderItemId, "cancelled");
+  await productVariantRepository.adjustStock(
+    item.productVariantId,
+    item.quantity,
+  );
+
+  const synced = await syncOrderStatus(item.orderId);
+  if (synced) {
+    const { order, next } = synced;
+    if (next === "cancelled") {
+      await notifyBuyer(
+        order.buyerId,
+        "order_cancelled",
+        "Order cancelled",
+        `Your order ${orderRef(order.id)} has been cancelled because its items are no longer available.`,
+      );
+    } else {
+      await notifyBuyer(
+        order.buyerId,
+        "order_item_cancelled",
+        "An item was cancelled",
+        `One item in your order ${orderRef(order.id)} is no longer available and was removed. The rest of your order is on track.`,
+      );
+    }
+  }
+  return "item_cancelled";
 }
 
 // ─────────────────────────────────────────

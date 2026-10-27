@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  cancelOrderItem,
   getHubOrders,
   receiveItemAtHub,
   type HubOrder,
@@ -15,6 +16,7 @@ import {
   ShipmentStatusBadge,
 } from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Icon } from "@/components/ui/Icon";
@@ -36,7 +38,11 @@ import type {
 
 type Queue = "receive" | "ship" | "transit";
 
+// Soko fulfils every order: paid items are received straight into the hub
+// (older orders may still show a store's hand-in steps).
 const RECEIVABLE: OrderStatus[] = ["confirmed", "processing", "dropped_off"];
+// Anything not yet shipped can be cancelled if Soko can't supply it.
+const CANCELLABLE: OrderStatus[] = [...RECEIVABLE, "at_hub"];
 const INACTIVE: OrderStatus[] = ["cancelled", "refunded"];
 
 const queueOf = (h: HubOrder): Queue =>
@@ -75,6 +81,10 @@ export default function HubPage() {
   const [error, setError] = useState<string | null>(null);
   const [queue, setQueue] = useState<Queue>("receive");
   const [busy, setBusy] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -128,7 +138,7 @@ export default function HubPage() {
       <PageHeader
         eyebrow={HUB_LABEL}
         title="Hub"
-        description="Receive items from sellers, then ship each order to the buyer in one go."
+        description="Receive each paid item into the hub, then ship the whole order to the buyer in one go."
       />
 
       <FilterChips
@@ -159,7 +169,7 @@ export default function HubPage() {
           icon="inbox"
           title={
             queue === "receive"
-              ? "Nothing waiting on sellers"
+              ? "Nothing to receive"
               : queue === "ship"
                 ? "Nothing ready to ship"
                 : "Nothing on the way"
@@ -187,6 +197,7 @@ export default function HubPage() {
                     "Item received at the hub",
                   )
                 }
+                onCancel={(id, name) => setCancelling({ id, name })}
                 onShip={(courier, tracking) =>
                   run(
                     h.order.id,
@@ -208,6 +219,33 @@ export default function HubPage() {
           ))}
         </ul>
       )}
+
+      <ConfirmDialog
+        open={cancelling !== null}
+        title="Cancel this item?"
+        message={
+          <>
+            <span className="font-medium text-zinc-800 dark:text-zinc-200">
+              {cancelling?.name}
+            </span>{" "}
+            will be removed from the order and its stock put back. The buyer is
+            told; refund them separately if they've paid.
+          </>
+        }
+        confirmLabel="Cancel item"
+        destructive
+        loading={busy === cancelling?.id}
+        onConfirm={async () => {
+          if (!cancelling) return;
+          await run(
+            cancelling.id,
+            () => cancelOrderItem(cancelling.id),
+            "Item cancelled. The buyer has been told.",
+          );
+          setCancelling(null);
+        }}
+        onClose={() => setCancelling(null)}
+      />
     </div>
   );
 }
@@ -217,6 +255,7 @@ function HubOrderCard({
   variants,
   busy,
   onReceive,
+  onCancel,
   onShip,
   onStep,
 }: {
@@ -224,6 +263,7 @@ function HubOrderCard({
   variants: Record<string, VariantDetails>;
   busy: string | null;
   onReceive: (itemId: string) => void;
+  onCancel: (itemId: string, name: string) => void;
   onShip: (courier: Courier, tracking?: string) => void;
   onStep: (status: ShipmentStatus) => void;
 }) {
@@ -284,6 +324,20 @@ function HubOrderCard({
                 >
                   <Icon name="check" size={14} />
                   Received
+                </Button>
+              )}
+              {!h.shipment && CANCELLABLE.includes(item.status) && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={busy === item.id}
+                  onClick={() =>
+                    onCancel(item.id, v?.product.name ?? "This item")
+                  }
+                  className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/20"
+                  aria-label={`Cancel ${v?.product.name ?? "item"}`}
+                >
+                  Cancel
                 </Button>
               )}
             </li>

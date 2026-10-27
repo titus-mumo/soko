@@ -16,10 +16,6 @@ export default async function AuthLayout({
   const statItems = stats
     ? [
         {
-          value: stats.sellers,
-          label: stats.sellers === 1 ? "seller" : "sellers",
-        },
-        {
           value: stats.products,
           label: stats.products === 1 ? "product" : "products",
         },
@@ -46,8 +42,8 @@ export default async function AuthLayout({
             Kenya&apos;s marketplace, built for you.
           </h2>
           <p className="mt-5 text-lg leading-relaxed text-brand-100/80">
-            Buy from trusted local sellers, pay with M-Pesa, and get it
-            delivered across the country.
+            Shop electronics, fashion and home goods, pay with M-Pesa, and get
+            it delivered across the country.
           </p>
         </div>
 

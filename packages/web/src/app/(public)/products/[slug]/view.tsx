@@ -5,8 +5,8 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { addToAnyCart } from "@/lib/guest-cart";
 import { LOW_STOCK, availableOf } from "@/lib/stock";
-import { useOwnStoreId } from "@/store/seller.store";
-import { getMyProduct } from "@/lib/products.api";
+import { useInCart } from "@/store/cart.store";
+import { useSessionUser } from "@/store/auth.store";
 import { toast } from "@/store/toast.store";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -40,7 +40,6 @@ export default function ProductDetailView({ data }: { data: ProductPageData }) {
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [adding, setAdding] = useState(false);
-  const ownStoreId = useOwnStoreId();
 
   useEffect(() => {
     const cheapest = variants.length
@@ -79,20 +78,11 @@ export default function ProductDetailView({ data }: { data: ProductPageData }) {
   // What's left once other shoppers' carts are counted.
   const left = selectedVariant ? availableOf(selectedVariant) : 0;
   const outOfStock = left === 0;
-  // Sellers can't buy their own listings (the server refuses too). The page
-  // doesn't say whose listing it is, so a seller asks: it's theirs if their
-  // own-listing endpoint finds it.
-  const [isOwnListing, setIsOwnListing] = useState(false);
-  useEffect(() => {
-    if (!ownStoreId) return setIsOwnListing(false);
-    let live = true;
-    getMyProduct(product.id)
-      .then(() => live && setIsOwnListing(true))
-      .catch(() => live && setIsOwnListing(false));
-    return () => {
-      live = false;
-    };
-  }, [ownStoreId, product.id]);
+  // A product without options is a single cart line: once added, the page
+  // points to the cart instead of offering to add it again.
+  const inCart = useInCart(variants.length === 1 ? selectedVariant?.id : null);
+  // Admins run the catalogue: they get a way into the listing, not a cart.
+  const isAdmin = useSessionUser()?.role === "admin";
   const price = Number(selectedVariant?.price ?? 0);
   const was = Number(selectedVariant?.compareAtPrice ?? 0);
   const saving = was > price ? was - price : 0;
@@ -266,21 +256,38 @@ export default function ProductDetailView({ data }: { data: ProductPageData }) {
             </fieldset>
           )}
 
-          {isOwnListing ? (
+          {isAdmin ? (
             <div className="mt-8 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
               <span className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
                 <span className="rounded-md bg-zinc-600 px-2 py-0.5 text-xs font-medium text-white">
-                  Your listing
+                  Admin
                 </span>
-                You can&apos;t buy from your own store.
+                You&apos;re viewing this as an admin.
               </span>
               <ButtonLink
-                href={`/seller/products/${product.id}/edit`}
+                href={`/admin/products/${product.id}/edit`}
                 variant="secondary"
                 size="sm"
               >
                 <Icon name="edit" size={14} />
                 Edit listing
+              </ButtonLink>
+            </div>
+          ) : inCart ? (
+            <div className="mt-8 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-600/30 bg-brand-600/[0.06] px-4 py-3">
+              <span
+                className="flex items-center gap-2 text-sm font-medium text-zinc-800 dark:text-zinc-200"
+                role="status"
+              >
+                <Icon
+                  name="check"
+                  className="text-brand-600 dark:text-brand-400"
+                />
+                In your cart
+              </span>
+              <ButtonLink href="/cart" size="sm">
+                <Icon name="cart" size={14} />
+                View cart
               </ButtonLink>
             </div>
           ) : (
@@ -347,7 +354,7 @@ export default function ProductDetailView({ data }: { data: ProductPageData }) {
               {seller?.isVerified && (
                 <Badge tone="success" size="sm">
                   <Icon name="shield" size={12} />
-                  Verified seller
+                  Verified
                 </Badge>
               )}
             </li>
@@ -389,7 +396,7 @@ export default function ProductDetailView({ data }: { data: ProductPageData }) {
                 </p>
               ) : (
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  The seller hasn&apos;t added a description yet.
+                  No description yet.
                 </p>
               ),
             },

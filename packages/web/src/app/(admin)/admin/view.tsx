@@ -169,6 +169,8 @@ export default function AdminPage() {
         </h2>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {[
+            { href: "/admin/products/new", label: "Add a product" },
+            { href: "/admin/hub", label: "Run the hub" },
             { href: "/admin/users", label: "Manage users" },
             { href: "/admin/orders", label: "Review orders" },
             { href: "/admin/categories", label: "Edit categories" },

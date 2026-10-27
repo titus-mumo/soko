@@ -1,6 +1,7 @@
 import { getRepositories } from "../lib/repositories";
-import type { CatalogueSort, PageParams } from "db-operations";
+import type { CatalogueSort, PageParams, ProductStatus } from "db-operations";
 import { anyContactInfo } from "../lib/contact-filter";
+import { houseStoreId } from "../lib/house-store";
 import type {
   NewProduct,
   NewProductVariant,
@@ -102,15 +103,17 @@ export async function getProductsByCategory(
   });
 }
 
-// One of the calling seller's own products (any status), for editing.
-export async function getMyProduct(userId: string, productId: string) {
-  const seller =
-    await sellerProfileRepository.findSellerProfileByUserId(userId);
-  if (seller === "seller_not_found") return "seller_not_found" as const;
+// ─────────────────────────────────────────
+// Catalogue management (admins)
+// ─────────────────────────────────────────
+// Soko manages the catalogue itself: admins create and edit every listing.
+// Stores can't be created any more; existing listings keep their store, and
+// new ones go to the house store (lib/house-store.ts).
+
+/** Any listing (any status), with everything the edit page needs. */
+export async function getManagedProduct(productId: string) {
   const product = await productRepository.findProductById(productId);
-  if (product === "product_not_found" || product.sellerId !== seller.id)
-    return "product_not_found" as const;
-  // Everything the edit page needs, in one response.
+  if (product === "product_not_found") return "product_not_found" as const;
   const [variants, images, tags] = await Promise.all([
     productVariantRepository.findVariantsByProductId(productId),
     productImageRepository.findImagesByProductId(productId),
@@ -119,17 +122,15 @@ export async function getMyProduct(userId: string, productId: string) {
   return { ...product, variants, images, tags: tags.map((t) => t.tag) };
 }
 
-// All of the calling seller's products, drafts included.
-// One page of them, each with its variants, images and units sold (excluding
-// cancelled items) — three batched queries, not three per product.
-export async function getMyProducts(userId: string, page?: PageParams) {
-  const seller =
-    await sellerProfileRepository.findSellerProfileByUserId(userId);
-  if (seller === "seller_not_found") return "seller_not_found" as const;
-  const result = await productRepository.pageProductsBySellerId(
-    seller.id,
-    page,
-  );
+/**
+ * One page of every listing, newest first, optionally at one status — each
+ * with its variants, images and units sold (three batched queries).
+ */
+export async function getManagedProducts(
+  page?: PageParams,
+  status?: ProductStatus,
+) {
+  const result = await productRepository.pageProducts(page, status);
   const ids = result.items.map((p) => p.id);
   const [sold, variants, images] = await Promise.all([
     orderItemRepository.unitsSoldByProduct(ids),
@@ -145,6 +146,11 @@ export async function getMyProducts(userId: string, page?: PageParams) {
       images: images.filter((i) => i.productId === p.id),
     })),
   };
+}
+
+/** Listings per status, for the admin catalogue tabs. */
+export async function getCatalogueCounts() {
+  return await productRepository.countByStatus();
 }
 
 // Resolves a variant to its product and primary image. Cart and order
@@ -166,33 +172,29 @@ export async function getVariantDetails(variantId: string) {
   };
 }
 
-export async function createProduct(
-  userId: string,
-  data: {
-    name: string;
-    slug: string;
-    categoryId: string;
-    description?: string;
-    condition: "new" | "used" | "refurbished";
-    variants: Array<{
-      sku: string;
-      size?: string;
-      color?: string;
-      material?: string;
-      price: string;
-      compareAtPrice?: string;
-      stockQuantity?: number;
-    }>;
-    images?: Array<{
-      url: string;
-      isPrimary?: boolean;
-      sortOrder?: number;
-      variantId?: string;
-    }>;
-    tags?: string[];
-  },
-): Promise<
-  | "seller_not_found"
+export async function createProduct(data: {
+  name: string;
+  slug: string;
+  categoryId: string;
+  description?: string;
+  condition: "new" | "used" | "refurbished";
+  variants: Array<{
+    sku: string;
+    size?: string;
+    color?: string;
+    material?: string;
+    price: string;
+    compareAtPrice?: string;
+    stockQuantity?: number;
+  }>;
+  images?: Array<{
+    url: string;
+    isPrimary?: boolean;
+    sortOrder?: number;
+    variantId?: string;
+  }>;
+  tags?: string[];
+}): Promise<
   | "contact_info"
   | "category_not_found"
   | "slug_taken"
@@ -208,11 +210,6 @@ export async function createProduct(
       tags: Awaited<ReturnType<typeof productTagRepository.insertTags>>;
     }
 > {
-  // Confirm the seller profile exists for this user.
-  const seller =
-    await sellerProfileRepository.findSellerProfileByUserId(userId);
-  if (seller === "seller_not_found") return "seller_not_found";
-
   // Listings can't carry ways to reach the seller off Soko.
   if (
     anyContactInfo(
@@ -235,9 +232,9 @@ export async function createProduct(
   // A product must have at least one variant.
   if (!data.variants || data.variants.length === 0) return "no_variants";
 
-  // Insert the product record first.
+  // Insert the product record first, under Soko's own store.
   const product = await productRepository.insertProduct({
-    sellerId: seller.id,
+    sellerId: await houseStoreId(),
     categoryId: data.categoryId,
     name: data.name,
     slug: data.slug,
@@ -280,7 +277,6 @@ export async function createProduct(
 }
 
 export async function updateProduct(
-  userId: string,
   productId: string,
   data: Partial<
     Pick<
@@ -289,76 +285,58 @@ export async function updateProduct(
     >
   >,
 ): Promise<
-  | "seller_not_found"
   | "product_not_found"
   | "slug_taken"
   | "contact_info"
   | Awaited<ReturnType<typeof productRepository.updateProduct>>
 > {
-  const seller =
-    await sellerProfileRepository.findSellerProfileByUserId(userId);
-  if (seller === "seller_not_found") return "seller_not_found";
+  const product = await productRepository.findProductById(productId);
+  if (product === "product_not_found") return "product_not_found";
 
   if (anyContactInfo(data.name, data.description)) return "contact_info";
 
   if (data.slug) {
     const existing = await productRepository.findProductBySlug(data.slug);
-    if (
-      existing !== "product_not_found" &&
-      (existing as any).id !== productId
-    ) {
+    if (existing !== "product_not_found" && existing.id !== productId)
       return "slug_taken";
-    }
   }
 
-  return await productRepository.updateProduct(productId, seller.id, data);
+  return await productRepository.updateProduct(
+    productId,
+    product.sellerId,
+    data,
+  );
+}
+
+async function setStatus(productId: string, status: "active" | "draft") {
+  const product = await productRepository.findProductById(productId);
+  if (product === "product_not_found") return "product_not_found" as const;
+  return await productRepository.updateProductStatus(
+    productId,
+    product.sellerId,
+    status,
+  );
 }
 
 export async function publishProduct(
-  userId: string,
   productId: string,
-): Promise<"seller_not_found" | "product_not_found" | "product_published"> {
-  const seller =
-    await sellerProfileRepository.findSellerProfileByUserId(userId);
-  if (seller === "seller_not_found") return "seller_not_found";
-
-  const result = await productRepository.updateProductStatus(
-    productId,
-    seller.id,
-    "active",
-  );
-
-  if (result === "product_not_found") return "product_not_found";
-
-  return "product_published";
+): Promise<"product_not_found" | "product_published"> {
+  const result = await setStatus(productId, "active");
+  return result === "product_not_found" ? result : "product_published";
 }
 
 export async function unpublishProduct(
-  userId: string,
   productId: string,
-): Promise<"seller_not_found" | "product_not_found" | "product_unpublished"> {
-  const seller =
-    await sellerProfileRepository.findSellerProfileByUserId(userId);
-  if (seller === "seller_not_found") return "seller_not_found";
-
-  const result = await productRepository.updateProductStatus(
-    productId,
-    seller.id,
-    "draft",
-  );
-
-  if (result === "product_not_found") return "product_not_found";
-
-  return "product_unpublished";
+): Promise<"product_not_found" | "product_unpublished"> {
+  const result = await setStatus(productId, "draft");
+  return result === "product_not_found" ? result : "product_unpublished";
 }
 
 export async function deleteProduct(
-  userId: string,
   productId: string,
-): Promise<"seller_not_found" | "product_not_found" | "product_deleted"> {
-  const seller =
-    await sellerProfileRepository.findSellerProfileByUserId(userId);
-  if (seller === "seller_not_found") return "seller_not_found";
+): Promise<"product_not_found" | "product_deleted"> {
+  const product = await productRepository.findProductById(productId);
+  if (product === "product_not_found") return "product_not_found";
 
   // Cascade soft delete to variants, images, and tags.
   await productVariantRepository.softDeleteVariantsByProductId(productId);
@@ -367,7 +345,7 @@ export async function deleteProduct(
 
   const result = await productRepository.softDeleteProduct(
     productId,
-    seller.id,
+    product.sellerId,
   );
   if (!result) return "product_not_found";
 
@@ -395,14 +373,9 @@ export async function getProductVariants(productId: string) {
 }
 
 export async function addVariant(
-  userId: string,
   productId: string,
   data: Omit<NewProductVariant, "productId">,
 ) {
-  const seller =
-    await sellerProfileRepository.findSellerProfileByUserId(userId);
-  if (seller === "seller_not_found") return "seller_not_found" as const;
-
   const product = await productRepository.findProductById(productId);
   if (product === "product_not_found") return "product_not_found" as const;
 
@@ -413,15 +386,10 @@ export async function addVariant(
 }
 
 export async function updateVariant(
-  userId: string,
   productId: string,
   variantId: string,
   data: Partial<NewProductVariant>,
 ) {
-  const seller =
-    await sellerProfileRepository.findSellerProfileByUserId(userId);
-  if (seller === "seller_not_found") return "seller_not_found" as const;
-
   return await productVariantRepository.updateVariant(
     variantId,
     productId,
@@ -433,15 +401,7 @@ export async function adjustVariantStock(variantId: string, delta: number) {
   return await productVariantRepository.adjustStock(variantId, delta);
 }
 
-export async function deleteVariant(
-  userId: string,
-  productId: string,
-  variantId: string,
-) {
-  const seller =
-    await sellerProfileRepository.findSellerProfileByUserId(userId);
-  if (seller === "seller_not_found") return "seller_not_found" as const;
-
+export async function deleteVariant(productId: string, variantId: string) {
   return await productVariantRepository.softDeleteVariant(variantId, productId);
 }
 
@@ -476,18 +436,9 @@ export async function getProductTags(productId: string) {
   return await productTagRepository.findTagsByProductId(productId);
 }
 
-// Only the product's own seller may change its tags.
-export async function replaceProductTags(
-  userId: string,
-  productId: string,
-  tags: string[],
-) {
-  const seller =
-    await sellerProfileRepository.findSellerProfileByUserId(userId);
-  if (seller === "seller_not_found") return "product_not_found" as const;
+export async function replaceProductTags(productId: string, tags: string[]) {
   const product = await productRepository.findProductById(productId);
-  if (product === "product_not_found" || product.sellerId !== seller.id)
-    return "product_not_found" as const;
+  if (product === "product_not_found") return "product_not_found" as const;
   if (anyContactInfo(...tags)) return "contact_info" as const;
   return await productTagRepository.replaceProductTags(productId, tags);
 }

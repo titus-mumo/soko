@@ -32,6 +32,10 @@ export const metadata: Metadata = {
   },
   description: SITE_DESCRIPTION,
   applicationName: SITE_NAME,
+  authors: [{ name: SITE_NAME, url: SITE_URL }],
+  creator: SITE_NAME,
+  publisher: SITE_NAME,
+  category: "shopping",
   keywords: [
     "Kenya",
     "online shopping",
@@ -40,6 +44,8 @@ export const metadata: Metadata = {
     "Nairobi",
     "electronics",
     "fashion",
+    "home goods",
+    "online shop Kenya",
   ],
   alternates: { canonical: "/" },
   openGraph: {
@@ -51,11 +57,17 @@ export const metadata: Metadata = {
     locale: "en_KE",
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: `${SITE_NAME} — Kenya's marketplace`,
     description: SITE_DESCRIPTION,
   },
-  robots: { index: true, follow: true },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, "max-image-preview": "large" },
+  },
+  // "Add to Home Screen" on iPhone: the app's name and status bar style.
+  appleWebApp: { title: SITE_NAME, capable: true, statusBarStyle: "default" },
   formatDetection: { telephone: false },
 };
 

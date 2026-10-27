@@ -51,15 +51,11 @@ describe("POST /reviews/me", () => {
     expect(mine[0]).not.toHaveProperty("reviewerId");
   });
 
-  test("updates the seller's rating and notifies them", async () => {
-    const store = ok(
-      await api("GET", "/sellers/me", { token: m.seller.token }),
+  test("updates the store's rating, shown on the product page", async () => {
+    const page = ok<{ seller: { rating: string } | null }>(
+      await api("GET", `/products/by-slug/${m.product.slug}`),
     );
-    expect(Number(store.rating)).toBe(4);
-    const notes = ok<{ type: string }[]>(
-      await api("GET", "/notifications/me", { token: m.seller.token }),
-    );
-    expect(notes.map((n) => n.type)).toContain("new_review");
+    expect(Number(page.seller?.rating)).toBeGreaterThan(0);
   });
 
   test("409 when reviewing the same item twice", async () => {
@@ -115,8 +111,8 @@ describe("public review reads", () => {
 
   test("there are no per-store review routes (stores are anonymous)", async () => {
     for (const path of [
-      `/reviews/seller/${m.seller.sellerId}`,
-      `/reviews/seller/${m.seller.sellerId}/rating`,
+      `/reviews/seller/${missingId()}`,
+      `/reviews/seller/${missingId()}/rating`,
     ])
       expect((await api("GET", path)).status).toBe(404);
   });

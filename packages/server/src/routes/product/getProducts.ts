@@ -8,11 +8,12 @@ import {
   getProductVariants,
   getProductImages,
   getProductTags,
-  getMyProducts,
-  getMyProduct,
+  getManagedProducts,
+  getManagedProduct,
+  getCatalogueCounts,
   getVariantDetails,
 } from "../../services/product.service";
-import { sellerPlugin } from "src/middleware/auth.middleware";
+import { adminPlugin } from "src/middleware/auth.middleware";
 import {
   publicImage,
   publicTag,
@@ -119,27 +120,38 @@ export const GetProductTags = new Elysia().get(
   },
 );
 
-export const GetMyProducts = new Elysia()
-  .use(sellerPlugin)
-  .get("/me", async (ctx) => {
-    const { userId, set, query } = ctx as any;
-    const result = await getMyProducts(userId, pageParams(query));
-    if (result === "seller_not_found") {
-      set.status = 404;
-      return { success: false, message: "Seller profile not found." };
+const PRODUCT_STATUSES = ["draft", "active", "suspended", "out_of_stock"];
+
+// Admin — every listing (any store, any status), newest first.
+export const GetManagedProducts = new Elysia()
+  .use(adminPlugin)
+  .get("/admin", async (ctx) => {
+    const { query, set } = ctx as any;
+    const status = query?.status;
+    if (status && !PRODUCT_STATUSES.includes(status)) {
+      set.status = 400;
+      return { success: false, message: "Unknown product status." };
     }
-    return paged(result, ownerListing);
+    return paged(
+      await getManagedProducts(pageParams(query), status),
+      ownerListing,
+    );
   });
 
-export const GetMyProduct = new Elysia()
-  .use(sellerPlugin)
-  .get("/me/:productId", async (ctx) => {
-    const { userId, set, params } = ctx as any;
-    const result = await getMyProduct(userId, params.productId);
-    if (result === "seller_not_found") {
-      set.status = 404;
-      return { success: false, message: "Seller profile not found." };
-    }
+// Admin — listings per status, for the catalogue tabs.
+export const GetCatalogueCounts = new Elysia()
+  .use(adminPlugin)
+  .get("/admin/counts", async () => ({
+    success: true,
+    data: await getCatalogueCounts(),
+  }));
+
+// Admin — one listing with everything the edit page needs.
+export const GetManagedProduct = new Elysia()
+  .use(adminPlugin)
+  .get("/admin/:productId", async (ctx) => {
+    const { params, set } = ctx as any;
+    const result = await getManagedProduct(params.productId);
     if (result === "product_not_found") {
       set.status = 404;
       return { success: false, message: "Product not found." };

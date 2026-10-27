@@ -7,17 +7,12 @@ import {
   CancelOrder,
 } from "./buyerOrders";
 import {
-  GetSellerOrderItems,
-  GetSellerStats,
-  GetSellerOrderItemsByStatus,
-  UpdateOrderItemStatus,
-} from "./sellerOrders";
-import {
   GetOrdersByStatus,
   GetOrdersByPaymentStatus,
   AdminUpdateOrderStatus,
   GetHubOrders,
   ReceiveItemAtHub,
+  CancelOrderItem,
 } from "./adminOrders";
 
 export const orderRoutes = new Elysia().group("/orders", (app) =>
@@ -28,14 +23,10 @@ export const orderRoutes = new Elysia().group("/orders", (app) =>
     .use(GetBuyerOrderById)
     .use(PlaceOrder)
     .use(CancelOrder)
-    // Seller
-    .use(GetSellerStats)
-    .use(GetSellerOrderItems)
-    .use(GetSellerOrderItemsByStatus)
-    .use(UpdateOrderItemStatus)
     // Admin
     .use(GetHubOrders)
     .use(ReceiveItemAtHub)
+    .use(CancelOrderItem)
     .use(GetOrdersByStatus)
     .use(GetOrdersByPaymentStatus)
     .use(AdminUpdateOrderStatus)

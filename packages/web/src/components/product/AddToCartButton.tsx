@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { addToAnyCart } from "@/lib/guest-cart";
 import { toast } from "@/store/toast.store";
+import { useInCart } from "@/store/cart.store";
 import { Icon } from "@/components/ui/Icon";
 import { apiErrorMessage, cn } from "@/lib/utils";
 
@@ -25,8 +26,15 @@ export function AddToCartButton({
 }) {
   const router = useRouter();
   const [state, setState] = useState<"idle" | "adding" | "added">("idle");
+  // A product without options is one line in the cart: once it's there the
+  // button says so and opens the cart (quantity is changed there).
+  const inCart = useInCart(variantId);
 
   const onClick = async () => {
+    if (inCart) {
+      router.push("/cart");
+      return;
+    }
     if (!variantId) {
       router.push(productHref);
       return;
@@ -59,11 +67,18 @@ export function AddToCartButton({
         onClick={onClick}
         disabled={state === "adding"}
         aria-label={
-          variantId
-            ? `Add ${productName} to cart`
-            : `Choose options for ${productName}`
+          inCart
+            ? `${productName} is in your cart — view cart`
+            : variantId
+              ? `Add ${productName} to cart`
+              : `Choose options for ${productName}`
         }
-        className="flex h-9 w-full items-center justify-center gap-2 rounded-md bg-brand-600 text-sm font-medium text-white transition-colors hover:bg-brand-500 focus-visible:ring-offset-zinc-900 active:scale-[0.98] disabled:opacity-70"
+        className={cn(
+          "flex h-9 w-full items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors focus-visible:ring-offset-zinc-900 active:scale-[0.98] disabled:opacity-70",
+          inCart
+            ? "bg-white text-brand-700 ring-1 ring-inset ring-brand-600/40 hover:bg-brand-50 dark:bg-zinc-900 dark:text-brand-400 dark:hover:bg-zinc-800"
+            : "bg-brand-600 text-white hover:bg-brand-500",
+        )}
       >
         {state === "adding" ? (
           <span
@@ -73,17 +88,23 @@ export function AddToCartButton({
         ) : (
           <Icon
             name={
-              state === "added" ? "check" : variantId ? "cart" : "arrow-right"
+              inCart || state === "added"
+                ? "check"
+                : variantId
+                  ? "cart"
+                  : "arrow-right"
             }
             size={16}
           />
         )}
         <span aria-hidden="true">
-          {state === "added"
-            ? "Added"
-            : variantId
-              ? "Add to cart"
-              : "Choose options"}
+          {inCart
+            ? "In cart"
+            : state === "added"
+              ? "Added"
+              : variantId
+                ? "Add to cart"
+                : "Choose options"}
         </span>
         <span className="sr-only" aria-live="polite">
           {state === "added" ? "Added to cart" : ""}

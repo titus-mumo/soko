@@ -15,6 +15,9 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "picsum.photos" },
       { protocol: "https", hostname: "fastly.picsum.photos" },
       { protocol: "https", hostname: "*.supabase.co" },
+      // Local Supabase Storage (uploaded product photos in development).
+      { protocol: "http", hostname: "127.0.0.1", port: "54321" },
+      { protocol: "http", hostname: "localhost", port: "54321" },
       // Seeded demo catalogue (db-operations seed:catalogue).
       { protocol: "https", hostname: "cdn.dummyjson.com" },
       {

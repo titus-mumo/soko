@@ -1,6 +1,7 @@
 import { api } from "./api";
 import { getPage, type Paged, type PageRequest } from "./paging";
 import type {
+  ProductStatus,
   ApiResponse,
   CatalogueItem,
   CatalogueSort,
@@ -57,26 +58,38 @@ export async function getProductBySlug(slug: string): Promise<Product> {
   return data.data;
 }
 
-/** All of the signed-in seller's products, drafts included. */
-export type MyProduct = ProductWithMedia & { unitsSold: number };
+// ─── Catalogue management (admins) ──────────────────────────────────────────
 
-export type MyListing = ProductWithMedia & { tags: string[] };
+/** A listing in the admin catalogue: with variants, images and units sold. */
+export type AdminProduct = ProductWithMedia & { unitsSold: number };
 
-/**
- * One of the seller's own listings, any status, with everything the edit
- * page needs — SKUs and real stock included (404 if it isn't theirs).
- */
-export async function getMyProduct(id: string): Promise<MyListing> {
-  const { data } = await api.get<ApiResponse<MyListing>>(`/products/me/${id}`);
+/** A listing with everything the edit page needs (SKUs, real stock, tags). */
+export type AdminListing = ProductWithMedia & { tags: string[] };
+
+/** One page of every listing, newest first, optionally at one status. */
+export function getAdminProducts(
+  page?: PageRequest,
+  status?: ProductStatus,
+): Promise<Paged<AdminProduct>> {
+  return getPage<AdminProduct>("/products/admin", page, { status });
+}
+
+/** Listings per status, for the catalogue tabs. */
+export async function getAdminProductCounts(): Promise<
+  Partial<Record<ProductStatus, number>>
+> {
+  const { data } = await api.get<
+    ApiResponse<Partial<Record<ProductStatus, number>>>
+  >("/products/admin/counts");
   return data.data;
 }
 
-/**
- * One page of the seller's own listings (any status), each with its variants,
- * images and units sold.
- */
-export function getMyProducts(page?: PageRequest): Promise<Paged<MyProduct>> {
-  return getPage<MyProduct>("/products/me", page);
+/** Any listing, any status (404 if it doesn't exist). */
+export async function getAdminProduct(id: string): Promise<AdminListing> {
+  const { data } = await api.get<ApiResponse<AdminListing>>(
+    `/products/admin/${id}`,
+  );
+  return data.data;
 }
 
 export async function getVariantDetails(
