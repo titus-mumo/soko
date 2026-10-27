@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useSyncSellerProfile } from "@/store/seller.store";
 import { useAuthStore } from "@/store/auth.store";
-import { refreshAccessToken } from "@/lib/api";
+import { isSessionRejected, refreshAccessToken } from "@/lib/api";
 import { onAuthHydrated } from "@/lib/session";
 import { syncCartTotals, syncUnreadCount } from "@/lib/sync";
 import { adoptGuestCart, syncGuestCartBadge } from "@/lib/guest-cart";
@@ -45,10 +45,13 @@ export function ShopShell({ children }: { children: React.ReactNode }) {
       if (!accessToken) {
         try {
           await refreshAccessToken();
-        } catch {
-          // Session expired — keep browsing as a guest.
-          logout();
-          syncGuestCartBadge();
+        } catch (err) {
+          // Session over — keep browsing as a guest. A blip (API down,
+          // rate limit) isn't a sign-out; the next request retries.
+          if (isSessionRejected(err)) {
+            logout();
+            syncGuestCartBadge();
+          }
           return;
         }
       }

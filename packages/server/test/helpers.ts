@@ -15,7 +15,7 @@ export interface ApiResult<T = any> {
   status: number;
   body: T;
   headers: Headers;
-  /** `refresh_token=…` from Set-Cookie, ready to send back as a Cookie header. */
+  /** `soko_refresh=…` from Set-Cookie, ready to send back as a Cookie header. */
   refreshCookie: string | null;
 }
 
@@ -48,12 +48,12 @@ export async function api<T = any>(
   }
 
   const setCookie = res.headers.get("set-cookie") ?? "";
-  const match = setCookie.match(/refresh_token=([^;]*)/);
+  const match = setCookie.match(/soko_refresh=([^;]*)/);
   return {
     status: res.status,
     body,
     headers: res.headers,
-    refreshCookie: match && match[1] ? `refresh_token=${match[1]}` : null,
+    refreshCookie: match && match[1] ? `soko_refresh=${match[1]}` : null,
   };
 }
 

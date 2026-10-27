@@ -1,6 +1,6 @@
 import { db } from "src/db";
 import { refreshTokensTable } from "src/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, gt, isNull } from "drizzle-orm";
 
 export type RefreshToken = typeof refreshTokensTable.$inferSelect;
 export type NewRefreshToken = typeof refreshTokensTable.$inferInsert;
@@ -82,6 +82,39 @@ export class RefreshTokenRepository {
       .returning();
 
     return res.length > 0;
+  }
+
+  // The token's row whatever its state (revoked or expired included), for
+  // telling a refresh race from a stolen token.
+  async findRefreshTokenRow(token: string): Promise<RefreshToken | null> {
+    const [res] = await db
+      .select()
+      .from(refreshTokensTable)
+      .where(
+        and(
+          eq(refreshTokensTable.token, token),
+          isNull(refreshTokensTable.deletedAt),
+        ),
+      );
+    return res ?? null;
+  }
+
+  // Whether the session (family) still has a usable token — false once it
+  // has been logged out or revoked as a whole.
+  async familyIsActive(family: string): Promise<boolean> {
+    const [res] = await db
+      .select({ id: refreshTokensTable.id })
+      .from(refreshTokensTable)
+      .where(
+        and(
+          eq(refreshTokensTable.family, family),
+          eq(refreshTokensTable.isRevoked, false),
+          gt(refreshTokensTable.expiresAt, new Date()),
+          isNull(refreshTokensTable.deletedAt),
+        ),
+      )
+      .limit(1);
+    return !!res;
   }
 
   // Revokes all tokens in a family on token reuse detection.

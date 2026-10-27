@@ -7,8 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import axios from "axios";
 import { useAuthStore, type User } from "@/store/auth.store";
 import { postLoginPath } from "@/lib/session";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+import { API_URL as API_BASE } from "@/lib/env";
 
 /**
  * The server redirects here after Google OAuth with `accessToken` and `user`

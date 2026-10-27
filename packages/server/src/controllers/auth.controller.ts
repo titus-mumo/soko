@@ -24,27 +24,43 @@ function getMeta(ctx: Context) {
   };
 }
 
-// Sets the refresh token as an HTTP-only cookie.
-function setRefreshTokenCookie(ctx: Context, token: string) {
-  ctx.cookie["refresh_token"].set({
-    value: token,
+// The refresh token lives in an HTTP-only cookie, sent only to /auth/*
+// (refresh and logout). Renamed from "refresh_token" when its path widened,
+// so an old, narrower cookie can't shadow it.
+export const REFRESH_COOKIE = "soko_refresh";
+
+/**
+ * SameSite for the refresh cookie (COOKIE_SAMESITE):
+ *   lax (default) — web app and API on the same site, e.g. soko.co.ke and
+ *                   api.soko.co.ke, or localhost:3000 and localhost:5000.
+ *   strict        — same, slightly stricter.
+ *   none          — web app and API on different sites (e.g. a vercel.app
+ *                   domain and another host). Requires HTTPS; some browsers
+ *                   (Safari) block such third-party cookies regardless.
+ */
+function cookieOptions() {
+  const raw = (Bun.env.COOKIE_SAMESITE ?? "lax").toLowerCase();
+  const sameSite = raw === "none" || raw === "strict" ? raw : "lax";
+  return {
     httpOnly: true,
-    secure: Bun.env.NODE_ENV === "production",
-    sameSite: "strict",
+    // Browsers drop SameSite=None cookies that aren't Secure.
+    secure: Bun.env.NODE_ENV === "production" || sameSite === "none",
+    sameSite: sameSite as "lax" | "strict" | "none",
+    path: "/auth",
+    ...(Bun.env.COOKIE_DOMAIN && { domain: Bun.env.COOKIE_DOMAIN }),
+  };
+}
+
+function setRefreshTokenCookie(ctx: Context, token: string) {
+  ctx.cookie[REFRESH_COOKIE].set({
+    ...cookieOptions(),
+    value: token,
     maxAge: 7 * 24 * 60 * 60, // 7 days in seconds
-    path: "/auth/refresh", // scoped to refresh endpoint only
   });
 }
 
-function clearRefreshTokenCookie(ctx: Context) {
-  ctx.cookie["refresh_token"].set({
-    value: "",
-    httpOnly: true,
-    secure: Bun.env.NODE_ENV === "production",
-    sameSite: "strict",
-    maxAge: 0,
-    path: "/auth/refresh",
-  });
+export function clearRefreshTokenCookie(ctx: Context) {
+  ctx.cookie[REFRESH_COOKIE].set({ ...cookieOptions(), value: "", maxAge: 0 });
 }
 
 // ─────────────────────────────────────────
@@ -235,7 +251,7 @@ export async function googleCallbackController(ctx: Context) {
 
 export async function refreshTokenController(ctx: Context) {
   // Read refresh token from HTTP-only cookie, not the request body.
-  const token = ctx.cookie["refresh_token"].value;
+  const token = ctx.cookie[REFRESH_COOKIE].value;
 
   if (!token) {
     ctx.set.status = 401;
@@ -286,7 +302,7 @@ export async function refreshTokenController(ctx: Context) {
 // ─────────────────────────────────────────
 
 export async function logoutController(ctx: Context) {
-  const token = ctx.cookie["refresh_token"].value;
+  const token = ctx.cookie[REFRESH_COOKIE].value;
 
   if (token) {
     await logout(token as string);

@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
+import postgres from "postgres";
 import {
   api,
   createUser,
@@ -45,7 +46,7 @@ describe("POST /auth/register", () => {
     expect(data.user.role).toBe("buyer");
     expect(data.user.passwordHash).toBeUndefined();
     expect(typeof data.accessToken).toBe("string");
-    expect(res.refreshCookie).toStartWith("refresh_token=");
+    expect(res.refreshCookie).toStartWith("soko_refresh=");
     expect(res.headers.get("set-cookie")).toContain("HttpOnly");
   });
 
@@ -253,6 +254,52 @@ describe("sessions", () => {
     expect(typeof data.accessToken).toBe("string");
     const me = await api("GET", "/users/me", { token: data.accessToken });
     expect(me.status).toBe(200);
+  });
+
+  test("the refresh cookie reaches /auth/* (refresh and logout) and is HTTP-only", async () => {
+    const res = await api("POST", "/auth/login", {
+      body: { email: (await createUser(t)).email, password: PASSWORD },
+    });
+    const cookie = res.headers.get("set-cookie") ?? "";
+    expect(cookie).toContain("soko_refresh=");
+    expect(cookie).toContain("Path=/auth");
+    expect(cookie).not.toContain("Path=/auth/refresh");
+    expect(cookie).toContain("HttpOnly");
+    expect(cookie.toLowerCase()).toContain("samesite=lax");
+  });
+
+  test("a reload mid-refresh doesn't log the user out (rotation grace)", async () => {
+    const user = await createUser(t);
+    // The first refresh rotates the token, but its response "never arrives"…
+    ok(await api("POST", "/auth/refresh", { cookie: user.refreshCookie }));
+    // …so the next page load sends the old cookie again: still signed in.
+    const again = await api("POST", "/auth/refresh", {
+      cookie: user.refreshCookie,
+    });
+    expect(again.status).toBe(200);
+    expect(again.refreshCookie).toBeTruthy();
+  });
+
+  test("reusing an old refresh token (after the grace period) ends the session", async () => {
+    const user = await createUser(t);
+    const next = await api("POST", "/auth/refresh", {
+      cookie: user.refreshCookie,
+    });
+    // Age the rotated token past the grace period.
+    const token = decodeURIComponent(user.refreshCookie.split("=")[1]!);
+    const sql = postgres(Bun.env.DB_URL!, { max: 1, prepare: false });
+    await sql`update refresh_tokens set updated_at = now() - interval '5 minutes' where token = ${token}`;
+    await sql.end();
+
+    expect(
+      (await api("POST", "/auth/refresh", { cookie: user.refreshCookie }))
+        .status,
+    ).toBe(401);
+    // Possible theft: the newer token in that session is revoked too.
+    expect(
+      (await api("POST", "/auth/refresh", { cookie: next.refreshCookie! }))
+        .status,
+    ).toBe(401);
   });
 
   test("POST /auth/refresh rejects a missing cookie", async () => {
