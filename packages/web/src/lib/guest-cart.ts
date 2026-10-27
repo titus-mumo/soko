@@ -48,7 +48,11 @@ export function guestCartCount(): number {
 /** Shows the guest cart's size on the cart badge. */
 export function syncGuestCartBadge() {
   if (useAuthStore.getState().user) return;
-  useCartStore.getState().setTotals(guestCartCount(), 0);
+  useCartStore.getState().setTotals(
+    guestCartCount(),
+    0,
+    getGuestLines().map((l) => l.variantId),
+  );
 }
 
 /** Adds to the guest cart; same variant twice adds up, like the server cart. */

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { addToAnyCart } from "@/lib/guest-cart";
 import { LOW_STOCK, availableOf } from "@/lib/stock";
 import { useOwnStoreId } from "@/store/seller.store";
+import { useInCart } from "@/store/cart.store";
 import { getMyProduct } from "@/lib/products.api";
 import { toast } from "@/store/toast.store";
 import { Button, ButtonLink } from "@/components/ui/Button";
@@ -79,6 +80,9 @@ export default function ProductDetailView({ data }: { data: ProductPageData }) {
   // What's left once other shoppers' carts are counted.
   const left = selectedVariant ? availableOf(selectedVariant) : 0;
   const outOfStock = left === 0;
+  // A product without options is a single cart line: once added, the page
+  // points to the cart instead of offering to add it again.
+  const inCart = useInCart(variants.length === 1 ? selectedVariant?.id : null);
   // Sellers can't buy their own listings (the server refuses too). The page
   // doesn't say whose listing it is, so a seller asks: it's theirs if their
   // own-listing endpoint finds it.
@@ -281,6 +285,23 @@ export default function ProductDetailView({ data }: { data: ProductPageData }) {
               >
                 <Icon name="edit" size={14} />
                 Edit listing
+              </ButtonLink>
+            </div>
+          ) : inCart ? (
+            <div className="mt-8 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-600/30 bg-brand-600/[0.06] px-4 py-3">
+              <span
+                className="flex items-center gap-2 text-sm font-medium text-zinc-800 dark:text-zinc-200"
+                role="status"
+              >
+                <Icon
+                  name="check"
+                  className="text-brand-600 dark:text-brand-400"
+                />
+                In your cart
+              </span>
+              <ButtonLink href="/cart" size="sm">
+                <Icon name="cart" size={14} />
+                View cart
               </ButtonLink>
             </div>
           ) : (

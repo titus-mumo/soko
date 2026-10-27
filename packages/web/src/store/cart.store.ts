@@ -5,10 +5,19 @@ interface CartStore {
   items: CartLine[];
   itemCount: number;
   subtotal: number;
+  /**
+   * Variants in the cart, known on every page (not just the cart page), so
+   * product cards and pages can show "In cart" instead of offering it again.
+   */
+  variantIds: string[];
   /** Replace the cart. Pass the server subtotal when known (e.g. /cart/summary). */
   setCart: (items: CartLine[], subtotal?: number) => void;
   /** Set counts without item details — used for the nav badge on load. */
-  setTotals: (itemCount: number, subtotal: number) => void;
+  setTotals: (
+    itemCount: number,
+    subtotal: number,
+    variantIds?: string[],
+  ) => void;
   addItem: (item: CartLine) => void;
   removeItem: (itemId: string) => void;
   updateQuantity: (itemId: string, quantity: number) => void;
@@ -31,6 +40,7 @@ function totals(items: CartLine[]) {
     items,
     itemCount: computeCount(items),
     subtotal: computeSubtotal(items),
+    variantIds: items.map((i) => i.productVariantId),
   };
 }
 
@@ -38,6 +48,7 @@ export const useCartStore = create<CartStore>()((set) => ({
   items: [],
   itemCount: 0,
   subtotal: 0,
+  variantIds: [],
 
   setCart: (items, subtotal) =>
     set({
@@ -45,7 +56,8 @@ export const useCartStore = create<CartStore>()((set) => ({
       ...(subtotal !== undefined && { subtotal }),
     }),
 
-  setTotals: (itemCount, subtotal) => set({ itemCount, subtotal }),
+  setTotals: (itemCount, subtotal, variantIds) =>
+    set({ itemCount, subtotal, ...(variantIds && { variantIds }) }),
 
   addItem: (item) =>
     set((s) => {
@@ -70,5 +82,10 @@ export const useCartStore = create<CartStore>()((set) => ({
       ),
     ),
 
-  clearCart: () => set({ items: [], itemCount: 0, subtotal: 0 }),
+  clearCart: () =>
+    set({ items: [], itemCount: 0, subtotal: 0, variantIds: [] }),
 }));
+
+/** Whether this variant is already in the cart (account or guest). */
+export const useInCart = (variantId?: string | null) =>
+  useCartStore((s) => !!variantId && s.variantIds.includes(variantId));
