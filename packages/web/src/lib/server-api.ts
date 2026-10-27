@@ -12,12 +12,12 @@ import type {
   Review,
   PublicSeller,
 } from "./types";
+import { API_URL } from "./env";
 
 // Server-side reads of public catalog data, for metadata, structured data and
 // first render. Import only from server components — the browser keeps using
 // the axios client in ./api.
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
 const REVALIDATE_SECONDS = 60;
 
 // This server renders pages for every visitor, so the API would otherwise

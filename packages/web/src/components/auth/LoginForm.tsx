@@ -15,8 +15,7 @@ import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/auth.store";
 import { postLoginPath } from "@/lib/session";
 import { apiErrorMessage } from "@/lib/utils";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+import { API_URL as API_BASE } from "@/lib/env";
 
 export function LoginForm() {
   const router = useRouter();
