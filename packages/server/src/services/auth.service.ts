@@ -233,6 +233,9 @@ export async function handleGoogleCallback(
 // Token Refresh
 // ─────────────────────────────────────────
 
+/** How long a rotated refresh token is still accepted (see refreshTokens). */
+export const ROTATION_GRACE_MS = 30_000;
+
 export async function refreshTokens(
   token: string,
   meta: { userAgent?: string; ip?: string },
@@ -245,7 +248,23 @@ export async function refreshTokens(
 
   if (stored === "token_not_found") return "token_not_found";
   if (stored === "token_revoked") {
-    // Token reuse detected — revoke the entire family to invalidate all sessions.
+    // A just-rotated token coming back is usually a race, not theft: the
+    // page reloaded mid-refresh (the new cookie never landed) or two tabs
+    // refreshed at once. Within the grace period, and while the session is
+    // still live, issue fresh tokens in the same session.
+    const row = await refreshTokenRepository.findRefreshTokenRow(token);
+    const rotatedAt = row?.updatedAt?.getTime() ?? 0;
+    if (
+      row &&
+      Date.now() - rotatedAt <= ROTATION_GRACE_MS &&
+      (await refreshTokenRepository.familyIsActive(payload.family))
+    ) {
+      const user = await userRepository.findUserById(payload.userId);
+      if (!user) return "token_not_found";
+      return await issueTokens(payload.userId, user.role, payload.family, meta);
+    }
+    // Otherwise it's reuse of an old token — a previous one in the chain may
+    // have been stolen. Revoke the whole session.
     await refreshTokenRepository.revokeTokenFamily(payload.family);
     return "token_revoked";
   }

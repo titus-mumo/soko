@@ -51,6 +51,16 @@ export function refreshAccessToken(): Promise<string> {
   return refreshing;
 }
 
+/**
+ * Whether a failed refresh means the session is really over. Only the API
+ * saying so (401/403) counts; an unreachable API, a rate limit or a server
+ * error leaves the user signed in to try again.
+ */
+export function isSessionRejected(err: unknown): boolean {
+  const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+  return status === 401 || status === 403;
+}
+
 /** Sends the browser to sign in, remembering where it was. */
 function redirectToLogin() {
   if (typeof window === "undefined") return;
@@ -81,7 +91,10 @@ api.interceptors.response.use(
         const token = await refreshAccessToken();
         original.headers.Authorization = `Bearer ${token}`;
         return api(original);
-      } catch {
+      } catch (refreshError) {
+        // A blip (API down, 429, 500) isn't a sign-out: fail this request
+        // and let the next one try again.
+        if (!isSessionRejected(refreshError)) return Promise.reject(error);
         useAuthStore.getState().logout();
         // Callers that can carry on signed out (e.g. adding to a guest cart)
         // opt out of the redirect and handle the 401 themselves.

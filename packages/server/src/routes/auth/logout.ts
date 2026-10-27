@@ -1,5 +1,8 @@
 import Elysia from "elysia";
-import { logoutController } from "../../controllers/auth.controller";
+import {
+  clearRefreshTokenCookie,
+  logoutController,
+} from "../../controllers/auth.controller";
 import { logoutAll } from "../../services/auth.service";
 import { verifyAccessToken } from "../../lib/jwt";
 
@@ -23,14 +26,7 @@ export const LogoutAll = new Elysia().post("/logout-all", async (ctx) => {
 
   await logoutAll(payload.userId);
 
-  ctx.cookie["refresh_token"].set({
-    value: "",
-    httpOnly: true,
-    secure: Bun.env.NODE_ENV === "production",
-    sameSite: "strict",
-    maxAge: 0,
-    path: "/auth/refresh",
-  });
+  clearRefreshTokenCookie(ctx as any);
 
   return { success: true, message: "Logged out from all devices." };
 });
