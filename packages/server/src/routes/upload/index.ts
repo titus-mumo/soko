@@ -3,6 +3,7 @@ import { adminPlugin } from "../../middleware/auth.middleware";
 import {
   MAX_IMAGE_BYTES,
   sniffImage,
+  StorageError,
   storageConfigured,
   uploadProductImage,
 } from "../../lib/storage";
@@ -63,9 +64,13 @@ const UploadProductImages = new Elysia().use(adminPlugin).post(
     } catch (err) {
       console.error(err);
       set.status = 502;
+      // Admin-only endpoint: say why, so a misconfiguration is fixable.
       return {
         success: false,
-        message: "Couldn't store the photos. Please try again.",
+        message:
+          err instanceof StorageError
+            ? `Couldn't store the photos. ${err.message}`
+            : `Couldn't reach storage (${err instanceof Error ? err.message : "unknown error"}) — check SUPABASE_URL.`,
       };
     }
   },
