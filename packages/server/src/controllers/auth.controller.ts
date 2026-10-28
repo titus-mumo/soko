@@ -46,7 +46,9 @@ function cookieOptions() {
     // Browsers drop SameSite=None cookies that aren't Secure.
     secure: Bun.env.NODE_ENV === "production" || sameSite === "none",
     sameSite: sameSite as "lax" | "strict" | "none",
-    path: "/auth",
+    // The path the browser uses for /auth/* — "/api/auth" when the web app
+    // proxies the API under its own domain (see web next.config.ts).
+    path: Bun.env.COOKIE_PATH || "/auth",
     ...(Bun.env.COOKIE_DOMAIN && { domain: Bun.env.COOKIE_DOMAIN }),
   };
 }

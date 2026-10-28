@@ -1,7 +1,7 @@
 import axios from "axios";
 import { useAuthStore } from "@/store/auth.store";
 import type { ApiResponse } from "./types";
-import { API_URL as BASE_URL } from "./env";
+import { BROWSER_API_URL as BASE_URL } from "./env";
 
 export const api = axios.create({
   baseURL: BASE_URL,

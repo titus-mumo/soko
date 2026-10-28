@@ -15,7 +15,7 @@ import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/auth.store";
 import { postLoginPath } from "@/lib/session";
 import { apiErrorMessage } from "@/lib/utils";
-import { API_URL as API_BASE } from "@/lib/env";
+import { BROWSER_API_URL as API_BASE } from "@/lib/env";
 
 export function LoginForm() {
   const router = useRouter();
