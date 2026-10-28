@@ -247,14 +247,14 @@ export default function OrderDetailPage() {
               return (
                 <li key={item.id} className="px-5 py-5">
                   <div className="flex gap-4">
-                    <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-zinc-100 dark:bg-zinc-800">
+                    <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-white ring-1 ring-inset ring-zinc-900/5 dark:ring-white/10">
                       {v?.primaryImage ? (
                         <SafeImage
                           src={v.primaryImage.url}
                           alt=""
                           fill
                           sizes="64px"
-                          className="object-cover"
+                          className="object-contain p-[6%]"
                         />
                       ) : (
                         <div className="flex h-full items-center justify-center text-zinc-300 dark:text-zinc-600">

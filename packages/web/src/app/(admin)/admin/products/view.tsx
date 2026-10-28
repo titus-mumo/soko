@@ -248,7 +248,7 @@ export default function AdminProductsPage() {
     return (
       <span
         className={cn(
-          "relative shrink-0 overflow-hidden rounded-lg bg-zinc-100 dark:bg-zinc-800",
+          "relative shrink-0 overflow-hidden rounded-lg bg-white ring-1 ring-inset ring-zinc-900/5 dark:ring-white/10",
           size,
         )}
       >
@@ -258,7 +258,7 @@ export default function AdminProductsPage() {
             alt=""
             fill
             sizes="48px"
-            className="object-cover"
+            className="object-contain p-[6%]"
           />
         ) : (
           <span className="flex h-full items-center justify-center text-zinc-300 dark:text-zinc-600">

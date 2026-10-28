@@ -25,7 +25,9 @@ export const UpdateUserProfile = new Elysia().use(authPlugin).patch(
   "/me",
   async (ctx) => {
     const { userId, body, set } = ctx as any;
-    const result = await updateProfile(userId, body);
+    // Only these fields — extra ones (e.g. profilePhoto) are ignored.
+    const { name, email, phone } = body;
+    const result = await updateProfile(userId, { name, email, phone });
 
     if (result === "user_not_found") {
       set.status = 404;
@@ -47,7 +49,7 @@ export const UpdateUserProfile = new Elysia().use(authPlugin).patch(
       name: t.Optional(t.String({ minLength: 2 })),
       email: t.Optional(t.String({ format: "email" })),
       phone: t.Optional(t.String({ minLength: 10 })),
-      profilePhoto: t.Optional(t.String()),
+      // No profilePhoto: it's set by uploading (POST /uploads/me/avatar).
     }),
   },
 );

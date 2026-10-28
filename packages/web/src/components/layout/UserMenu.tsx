@@ -67,7 +67,7 @@ export function UserMenu({
         onClick={() => setOpen((o) => !o)}
         className="tap-target flex items-center gap-2 rounded-full p-0.5 transition-opacity hover:opacity-90"
       >
-        <Avatar name={user.name} size={32} />
+        <Avatar name={user.name} src={user.profilePhoto} size={32} />
         <span className="sr-only">
           Account menu for {user.name ?? user.email}
         </span>

@@ -595,14 +595,14 @@ export default function CheckoutPage() {
           <ul className="mt-4 space-y-3">
             {lines.map((line) => (
               <li key={line.id} className="flex items-center gap-3">
-                <span className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-zinc-100 dark:bg-zinc-800">
+                <span className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-white ring-1 ring-inset ring-zinc-900/5 dark:ring-white/10">
                   {line.details?.primaryImage && (
                     <SafeImage
                       src={line.details.primaryImage.url}
                       alt=""
                       fill
                       sizes="48px"
-                      className="object-cover"
+                      className="object-contain p-[6%]"
                     />
                   )}
                   <span className="tabular absolute -right-0.5 -top-0.5 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-zinc-900 px-1 font-mono text-2xs font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900">

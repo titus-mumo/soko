@@ -1,10 +1,17 @@
-// Product photos live in Supabase Storage (a public bucket), not on the API
-// server's disk — Render's disk is wiped on every deploy. Talks to the
+// Product photos and profile pictures live in Supabase Storage (public
+// buckets), not on the API server's disk — Render's disk is wiped on every deploy. Talks to the
 // Storage REST API directly; needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY
 // (server-only: the service key can write anything).
 
-const BUCKET = "product-images";
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+export const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+
+/** Where each kind of image goes, and how big it may be. */
+const BUCKETS = {
+  products: { id: "product-images", maxBytes: MAX_IMAGE_BYTES },
+  avatars: { id: "avatars", maxBytes: MAX_AVATAR_BYTES },
+} as const;
+type BucketName = keyof typeof BUCKETS;
 
 /** Image formats we accept, recognised by their first bytes, not the name. */
 const FORMATS: {
@@ -45,8 +52,17 @@ export function sniffImage(bytes: Uint8Array) {
 }
 
 function config() {
-  const url = Bun.env.SUPABASE_URL?.replace(/\/+$/, "");
-  const key = Bun.env.SUPABASE_SERVICE_ROLE_KEY;
+  const key = Bun.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  // Only the project's origin matters: tolerate a pasted API path such as
+  // "https://<ref>.supabase.co/rest/v1/" or a trailing slash.
+  let url: string | undefined;
+  try {
+    url = Bun.env.SUPABASE_URL
+      ? new URL(Bun.env.SUPABASE_URL.trim()).origin
+      : undefined;
+  } catch {
+    url = undefined;
+  }
   return url && key ? { url, key } : null;
 }
 
@@ -85,19 +101,20 @@ const headers = (key: string): Record<string, string> =>
     ? { Authorization: `Bearer ${key}`, apikey: key }
     : { apikey: key };
 
-let bucketReady = false;
+const readyBuckets = new Set<string>();
 
-/** Creates the public bucket the first time it's needed. */
-async function ensureBucket(url: string, key: string) {
-  if (bucketReady) return;
+/** Creates a public bucket the first time it's needed. */
+async function ensureBucket(url: string, key: string, name: BucketName) {
+  const bucket = BUCKETS[name];
+  if (readyBuckets.has(bucket.id)) return;
   const res = await fetch(`${url}/storage/v1/bucket`, {
     method: "POST",
     headers: { ...headers(key), "Content-Type": "application/json" },
     body: JSON.stringify({
-      id: BUCKET,
-      name: BUCKET,
+      id: bucket.id,
+      name: bucket.id,
       public: true,
-      file_size_limit: MAX_IMAGE_BYTES,
+      file_size_limit: bucket.maxBytes,
       allowed_mime_types: FORMATS.map((f) => f.type),
     }),
   });
@@ -110,20 +127,22 @@ async function ensureBucket(url: string, key: string) {
         new Response(text, { status: res.status }),
       );
   }
-  bucketReady = true;
+  readyBuckets.add(bucket.id);
 }
 
-/** Stores an image and returns its public URL. */
-export async function uploadProductImage(
+/** Stores an image under `folder` in a bucket; returns its public URL. */
+async function uploadImage(
+  name: BucketName,
+  folder: string,
   bytes: Uint8Array,
   format: { ext: string; type: string },
 ): Promise<string> {
   const cfg = config();
   if (!cfg) throw new Error("Storage isn't configured");
-  await ensureBucket(cfg.url, cfg.key);
-  const now = new Date();
-  const path = `products/${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, "0")}/${crypto.randomUUID()}.${format.ext}`;
-  const res = await fetch(`${cfg.url}/storage/v1/object/${BUCKET}/${path}`, {
+  await ensureBucket(cfg.url, cfg.key, name);
+  const bucket = BUCKETS[name].id;
+  const path = `${folder}/${crypto.randomUUID()}.${format.ext}`;
+  const res = await fetch(`${cfg.url}/storage/v1/object/${bucket}/${path}`, {
     method: "POST",
     headers: {
       ...headers(cfg.key),
@@ -134,7 +153,52 @@ export async function uploadProductImage(
     },
     body: new Blob([bytes as Uint8Array<ArrayBuffer>], { type: format.type }),
   });
-  if (!res.ok)
-    throw new Error(`Upload failed: ${res.status} ${await res.text()}`);
-  return `${cfg.url}/storage/v1/object/public/${BUCKET}/${path}`;
+  if (!res.ok) throw await storageError("upload", res);
+  return `${cfg.url}/storage/v1/object/public/${bucket}/${path}`;
+}
+
+/** A product photo; returns its public URL. */
+export function uploadProductImage(
+  bytes: Uint8Array,
+  format: { ext: string; type: string },
+): Promise<string> {
+  const now = new Date();
+  const month = String(now.getUTCMonth() + 1).padStart(2, "0");
+  return uploadImage(
+    "products",
+    `products/${now.getUTCFullYear()}/${month}`,
+    bytes,
+    format,
+  );
+}
+
+/** A user's profile picture; returns its public URL. */
+export function uploadAvatar(
+  userId: string,
+  bytes: Uint8Array,
+  format: { ext: string; type: string },
+): Promise<string> {
+  return uploadImage("avatars", userId, bytes, format);
+}
+
+/** Whether a URL is one of this project's stored avatars. */
+export function isStoredAvatar(url: string | null | undefined): boolean {
+  const cfg = config();
+  return (
+    !!cfg &&
+    !!url &&
+    url.startsWith(`${cfg.url}/storage/v1/object/public/${BUCKETS.avatars.id}/`)
+  );
+}
+
+/** Deletes a stored avatar (best effort — a leftover file is harmless). */
+export async function deleteAvatar(url: string): Promise<void> {
+  const cfg = config();
+  if (!cfg || !isStoredAvatar(url)) return;
+  const prefix = url.split(`/public/${BUCKETS.avatars.id}/`)[1];
+  await fetch(`${cfg.url}/storage/v1/object/${BUCKETS.avatars.id}`, {
+    method: "DELETE",
+    headers: { ...headers(cfg.key), "Content-Type": "application/json" },
+    body: JSON.stringify({ prefixes: [prefix] }),
+  }).catch((err) => console.error("Avatar delete failed", err));
 }

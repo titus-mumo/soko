@@ -1,10 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ProfileSkeleton } from "@/components/skeletons";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { getUserProfile, updateProfile } from "@/lib/profile.api";
+import {
+  MAX_AVATAR_BYTES,
+  PHOTO_TYPES,
+  removeAvatar,
+  uploadAvatar,
+} from "@/lib/uploads.api";
+import { prepareImage } from "@/lib/image-prep";
 import { useAuthStore } from "@/store/auth.store";
 import { toast } from "@/store/toast.store";
 import { Input } from "@/components/ui/Input";
@@ -33,6 +40,8 @@ export default function ProfilePage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const photoInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     getUserProfile()
@@ -46,7 +55,6 @@ export default function ProfilePage() {
   const {
     register,
     handleSubmit,
-    watch,
     reset,
     setFocus,
     formState: { errors, isSubmitting, isDirty },
@@ -57,12 +65,51 @@ export default function ProfilePage() {
           name: profile.name,
           email: profile.email ?? "",
           phone: profile.phone ?? "",
-          profilePhoto: profile.profilePhoto ?? "",
         }
       : undefined,
   });
 
-  const photo = watch("profilePhoto");
+  const photo = profile?.profilePhoto ?? null;
+
+  // The new photo shows everywhere at once: here, the sidebar and menus.
+  const applyPhoto = (updated: UserProfile) => {
+    setProfile(updated);
+    if (authUser) setUser({ ...authUser, profilePhoto: updated.profilePhoto });
+  };
+
+  const onPickPhoto = async (file: File | undefined) => {
+    if (photoInput.current) photoInput.current.value = "";
+    if (!file) return;
+    if (!PHOTO_TYPES.includes(file.type))
+      return toast.error("Use a JPEG, PNG, WebP or AVIF photo.");
+    setPhotoBusy(true);
+    try {
+      // Trim solid borders and shrink big photos before checking the size.
+      const prepared = await prepareImage(file);
+      if (prepared.size > MAX_AVATAR_BYTES) {
+        toast.error("Your photo must be 2 MB or smaller.");
+        return;
+      }
+      applyPhoto(await uploadAvatar(prepared));
+      toast.success("Profile photo updated");
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Couldn't upload your photo"));
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const onRemovePhoto = async () => {
+    setPhotoBusy(true);
+    try {
+      applyPhoto(await removeAvatar());
+      toast.success("Profile photo removed");
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Couldn't remove your photo"));
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
 
   const onSubmit = async (values: UpdateProfileValues) => {
     setServerError(null);
@@ -74,7 +121,6 @@ export default function ProfilePage() {
         phone: values.phone
           ? (normalizeKenyanPhone(values.phone) ?? undefined)
           : undefined,
-        profilePhoto: values.profilePhoto || undefined,
       });
       setProfile(updated);
       if (authUser) {
@@ -135,20 +181,36 @@ export default function ProfilePage() {
             })}
           >
             <div className="group relative rounded-full">
-              <Avatar
-                name={profile?.name}
-                src={photo && !errors.profilePhoto ? photo : null}
-                size={80}
-              />
+              <Avatar name={profile?.name} src={photo} size={80} />
               {/* Overlay on hover/focus; always shown on touch screens. */}
               <button
                 type="button"
-                onClick={() => startEditing("profilePhoto")}
-                aria-label="Change profile photo"
-                className="absolute inset-0 flex items-center justify-center rounded-full bg-zinc-950/55 text-white transition-opacity duration-200 focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:hover)]:opacity-0"
+                onClick={() => photoInput.current?.click()}
+                disabled={photoBusy}
+                aria-label={
+                  photo ? "Change profile photo" : "Add a profile photo"
+                }
+                className={cn(
+                  "absolute inset-0 flex items-center justify-center rounded-full bg-zinc-950/55 text-white transition-opacity duration-200 focus-visible:opacity-100 group-hover:opacity-100",
+                  photoBusy ? "opacity-100" : "[@media(hover:hover)]:opacity-0",
+                )}
               >
-                <Icon name="camera" size={22} />
+                {photoBusy ? (
+                  <span
+                    aria-hidden="true"
+                    className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"
+                  />
+                ) : (
+                  <Icon name="camera" size={22} />
+                )}
               </button>
+              <input
+                ref={photoInput}
+                type="file"
+                accept={PHOTO_TYPES.join(",")}
+                hidden
+                onChange={(e) => onPickPhoto(e.target.files?.[0])}
+              />
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate font-display text-lg font-semibold text-zinc-950 dark:text-zinc-100">
@@ -166,6 +228,27 @@ export default function ProfilePage() {
                     <Icon name="shield" size={12} />
                     Verified
                   </Badge>
+                )}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={photoBusy}
+                  onClick={() => photoInput.current?.click()}
+                >
+                  <Icon name="camera" size={14} />
+                  {photo ? "Change photo" : "Add photo"}
+                </Button>
+                {photo && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={photoBusy}
+                    onClick={onRemovePhoto}
+                  >
+                    Remove photo
+                  </Button>
                 )}
               </div>
             </div>
@@ -227,16 +310,6 @@ export default function ProfilePage() {
                   error={errors.email?.message}
                   {...register("email")}
                 />
-                <Input
-                  id="profile-photo"
-                  type="url"
-                  label="Photo URL (optional)"
-                  placeholder="https://"
-                  hint="Link to an image hosted elsewhere"
-                  error={errors.profilePhoto?.message}
-                  {...register("profilePhoto")}
-                />
-
                 <FormError message={serverError} />
 
                 <div className="flex justify-end gap-2 border-t border-zinc-100 pt-5 dark:border-zinc-800">

@@ -42,18 +42,19 @@ describe("GET /users/me", () => {
 });
 
 describe("PATCH /users/me", () => {
-  test("updates name and photo", async () => {
+  test("updates the name; a photo URL can't be set this way", async () => {
     const updated = ok(
       await api("PATCH", "/users/me", {
         token: user.token,
         body: {
           name: "Renamed Tester",
-          profilePhoto: "https://picsum.photos/1",
+          // Ignored: photos are uploaded (POST /uploads/me/avatar).
+          profilePhoto: "https://tracker.example/pixel.png",
         },
       }),
     );
     expect(updated.name).toBe("Renamed Tester");
-    expect(updated.profilePhoto).toBe("https://picsum.photos/1");
+    expect(updated.profilePhoto ?? null).toBeNull();
   });
 
   test("409 when the email belongs to someone else", async () => {

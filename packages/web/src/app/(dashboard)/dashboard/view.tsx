@@ -141,14 +141,14 @@ function RecentlyViewed() {
               href={`/products/${p.slug}`}
               className="group block rounded-xl"
             >
-              <div className="relative aspect-square overflow-hidden rounded-xl bg-zinc-100 ring-1 ring-inset ring-zinc-900/5 dark:bg-zinc-900 dark:ring-white/5">
+              <div className="relative aspect-square overflow-hidden rounded-xl bg-white ring-1 ring-inset ring-zinc-900/5 dark:ring-white/10">
                 {p.image ? (
                   <SafeImage
                     src={p.image}
                     alt=""
                     fill
                     sizes="160px"
-                    className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                    className="object-contain p-[6%] transition-transform duration-500 group-hover:scale-[1.04]"
                   />
                 ) : (
                   <div className="flex h-full items-center justify-center text-zinc-300 dark:text-zinc-700">

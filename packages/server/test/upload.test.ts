@@ -24,7 +24,9 @@ afterAll(async () => {
   // Remove what this file stored.
   const url = Bun.env.SUPABASE_URL?.replace(/\/+$/, "");
   const key = Bun.env.SUPABASE_SERVICE_ROLE_KEY;
-  const prefixes = uploaded.map((u) => u.split("/public/product-images/")[1]);
+  const prefixes = uploaded
+    .filter((u) => u.includes("/public/product-images/"))
+    .map((u) => u.split("/public/product-images/")[1]);
   if (url && key && prefixes.length)
     await fetch(`${url}/storage/v1/object/product-images`, {
       method: "DELETE",
@@ -121,6 +123,22 @@ describe.skipIf(!storageConfigured())(
       }
     });
 
+    test("SUPABASE_URL with an API path pasted on still works", async () => {
+      const real = process.env.SUPABASE_URL!;
+      process.env.SUPABASE_URL = `${real.replace(/\/+$/, "")}/rest/v1/`;
+      try {
+        const res = await upload(admin.token, [
+          { name: "a.png", bytes: PNG, type: "image/png" },
+        ]);
+        expect(res.status).toBe(201);
+        const { data } = (await res.json()) as { data: { urls: string[] } };
+        uploaded.push(...data.urls);
+        expect(data.urls[0]).not.toContain("/rest/v1");
+      } finally {
+        process.env.SUPABASE_URL = real;
+      }
+    });
+
     test("is admin-only", async () => {
       const png = [{ name: "a.png", bytes: PNG, type: "image/png" }];
       expect((await upload(buyer.token, png)).status).toBe(403);
@@ -128,3 +146,74 @@ describe.skipIf(!storageConfigured())(
     });
   },
 );
+
+function uploadAvatar(
+  token: string | undefined,
+  bytes: Uint8Array,
+  name = "me.png",
+) {
+  const form = new FormData();
+  form.append(
+    "file",
+    new File([bytes as Uint8Array<ArrayBuffer>], name, { type: "image/png" }),
+  );
+  return App.handle(
+    new Request("http://localhost/uploads/me/avatar", {
+      method: "POST",
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+      body: form,
+    }),
+  );
+}
+
+describe.skipIf(!storageConfigured())("profile pictures", () => {
+  test("any signed-in user can upload one; replacing deletes the old file", async () => {
+    const first = await uploadAvatar(buyer.token, PNG);
+    expect(first.status).toBe(201);
+    const a = ((await first.json()) as { data: { profilePhoto: string } }).data
+      .profilePhoto;
+    expect(a).toContain("/public/avatars/");
+    expect((await fetch(a)).status).toBe(200);
+
+    const second = await uploadAvatar(buyer.token, PNG);
+    const b = ((await second.json()) as { data: { profilePhoto: string } }).data
+      .profilePhoto;
+    expect(b).not.toBe(a);
+    // The replaced photo is gone from storage.
+    expect((await fetch(a)).status).toBeGreaterThanOrEqual(400);
+
+    const me = (await (
+      await App.handle(
+        new Request("http://localhost/users/me", {
+          headers: { authorization: `Bearer ${buyer.token}` },
+        }),
+      )
+    ).json()) as { data: { profilePhoto: string } };
+    expect(me.data.profilePhoto).toBe(b);
+  });
+
+  test("DELETE removes it", async () => {
+    const res = await App.handle(
+      new Request("http://localhost/uploads/me/avatar", {
+        method: "DELETE",
+        headers: { authorization: `Bearer ${buyer.token}` },
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(
+      ((await res.json()) as { data: { profilePhoto: unknown } }).data
+        .profilePhoto ?? null,
+    ).toBeNull();
+  });
+
+  test("checks content and size, and needs a sign-in", async () => {
+    expect(
+      (await uploadAvatar(buyer.token, new TextEncoder().encode("nope")))
+        .status,
+    ).toBe(415);
+    const big = new Uint8Array(2 * 1024 * 1024 + 1);
+    big.set(PNG.subarray(0, 8));
+    expect((await uploadAvatar(buyer.token, big)).status).toBe(413);
+    expect((await uploadAvatar(undefined, PNG)).status).toBe(401);
+  });
+});

@@ -5,11 +5,6 @@ export const updateProfileSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Enter a valid email").optional().or(z.literal("")),
   phone: optionalKenyanPhoneSchema.optional(),
-  profilePhoto: z
-    .string()
-    .url("Enter a valid URL")
-    .optional()
-    .or(z.literal("")),
 });
 
 export const changePasswordSchema = z
