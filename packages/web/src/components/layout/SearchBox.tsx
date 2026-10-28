@@ -346,14 +346,14 @@ function SearchCombobox({
                   )}
                 >
                   {o.image !== undefined ? (
-                    <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded-md bg-zinc-100 dark:bg-zinc-800">
+                    <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded-md bg-white ring-1 ring-inset ring-zinc-900/5 dark:ring-white/10">
                       {o.image ? (
                         <SafeImage
                           src={o.image}
                           alt=""
                           fill
                           sizes="32px"
-                          className="object-cover"
+                          className="object-contain p-[6%]"
                         />
                       ) : (
                         <span className="flex h-full items-center justify-center text-zinc-400">

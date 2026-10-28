@@ -242,14 +242,14 @@ export function CartView() {
                   onDelete={() => handleRemove(line)}
                 >
                   <div className="flex gap-4 p-4 sm:p-5">
-                    <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-zinc-100 dark:bg-zinc-800 sm:h-24 sm:w-24">
+                    <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-white ring-1 ring-inset ring-zinc-900/5 dark:ring-white/10 sm:h-24 sm:w-24">
                       {line.details?.primaryImage ? (
                         <SafeImage
                           src={line.details.primaryImage.url}
                           alt=""
                           fill
                           sizes="96px"
-                          className="object-cover"
+                          className="object-contain p-[6%]"
                         />
                       ) : (
                         <div className="flex h-full items-center justify-center text-zinc-300 dark:text-zinc-600">

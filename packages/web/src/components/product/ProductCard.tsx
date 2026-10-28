@@ -70,7 +70,7 @@ export function ProductCard({
 
   return (
     <article className="group relative flex flex-col">
-      <div className="relative aspect-square overflow-hidden rounded-lg bg-zinc-100 dark:bg-zinc-800">
+      <div className="relative aspect-square overflow-hidden rounded-lg bg-white ring-1 ring-inset ring-zinc-900/5 dark:ring-white/10">
         {primaryImage ? (
           <SafeImage
             src={primaryImage}
@@ -78,7 +78,7 @@ export function ProductCard({
             fill
             priority={priority}
             sizes="(min-width: 1024px) 280px, (min-width: 768px) 33vw, 50vw"
-            className="object-cover transition-transform duration-200 ease-out group-hover:scale-[1.02]"
+            className="object-contain p-[6%] transition-transform duration-200 ease-out group-hover:scale-[1.03]"
           />
         ) : (
           <div className="flex h-full items-center justify-center text-zinc-300 dark:text-zinc-600">

@@ -58,9 +58,10 @@ export default function PrivacyPage() {
                 <tr>
                   <td>Account</td>
                   <td>
-                    Name, email address, phone number, and your password (stored
-                    only as a one-way hash). If you sign in with Google: your
-                    name, email and profile photo from Google.
+                    Name, email address, phone number, your password (stored
+                    only as a one-way hash), and a profile photo if you add one.
+                    If you sign in with Google: your name, email and profile
+                    photo from Google.
                   </td>
                 </tr>
                 <tr>

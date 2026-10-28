@@ -243,7 +243,7 @@ export function Sidebar({
                   aria-label="Your profile"
                   className="rounded-full"
                 >
-                  <Avatar name={user.name} size={36} />
+                  <Avatar name={user.name} src={user.profilePhoto} size={36} />
                 </Link>
               </Tooltip>
               <Tooltip label="Sign out" side="right">
@@ -259,7 +259,7 @@ export function Sidebar({
             </div>
           ) : (
             <div className="flex items-center gap-3 rounded-lg p-2">
-              <Avatar name={user.name} size={36} />
+              <Avatar name={user.name} src={user.profilePhoto} size={36} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
                   {user.name ?? user.email ?? user.phone}

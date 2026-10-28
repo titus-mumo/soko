@@ -131,13 +131,13 @@ function ImageManager({
                   : "border-zinc-200 dark:border-zinc-800",
               )}
             >
-              <div className="relative aspect-square w-full bg-zinc-50 dark:bg-zinc-900">
+              <div className="relative aspect-square w-full bg-white">
                 <SafeImage
                   src={img.url}
                   alt={`${product.name} — photo ${images.indexOf(img) + 1}${img.isPrimary ? " (primary)" : ""}`}
                   fill
                   sizes="(min-width: 640px) 33vw, 50vw"
-                  className="object-cover"
+                  className="object-contain p-[6%]"
                 />
               </div>
               <div className="flex items-center gap-1 border-t border-zinc-100 p-1.5 dark:border-zinc-800">

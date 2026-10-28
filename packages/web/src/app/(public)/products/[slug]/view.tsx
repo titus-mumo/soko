@@ -108,7 +108,7 @@ export default function ProductDetailView({ data }: { data: ProductPageData }) {
       <div className="grid gap-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-14">
         {/* Gallery */}
         <section aria-label="Product photos" className="space-y-3">
-          <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-zinc-100 ring-1 ring-inset ring-zinc-900/5 dark:bg-zinc-900 dark:ring-white/5">
+          <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-white ring-1 ring-inset ring-zinc-900/5 dark:ring-white/10">
             {images.length > 0 ? (
               // Every photo is stacked; the selected one fades in.
               images.map((img, i) => (
@@ -125,7 +125,7 @@ export default function ProductDetailView({ data }: { data: ProductPageData }) {
                   sizes="(min-width: 1024px) 640px, 100vw"
                   aria-hidden={i !== selectedImage}
                   className={cn(
-                    "object-cover transition-opacity duration-300 ease-out",
+                    "object-contain p-[6%] transition-opacity duration-300 ease-out",
                     i === selectedImage ? "opacity-100" : "opacity-0",
                   )}
                 />
@@ -150,7 +150,7 @@ export default function ProductDetailView({ data }: { data: ProductPageData }) {
                   aria-label={`Show photo ${i + 1} of ${images.length}`}
                   aria-pressed={selectedImage === i}
                   className={cn(
-                    "relative h-[4.5rem] w-[4.5rem] shrink-0 overflow-hidden rounded-lg ring-2 transition-[box-shadow,opacity] duration-150",
+                    "relative h-[4.5rem] w-[4.5rem] shrink-0 overflow-hidden rounded-lg bg-white ring-2 transition-[box-shadow,opacity] duration-150",
                     selectedImage === i
                       ? "ring-brand-600"
                       : "opacity-70 ring-transparent hover:opacity-100",
@@ -161,7 +161,7 @@ export default function ProductDetailView({ data }: { data: ProductPageData }) {
                     alt=""
                     fill
                     sizes="72px"
-                    className="object-cover"
+                    className="object-contain p-[6%]"
                   />
                 </button>
               ))}

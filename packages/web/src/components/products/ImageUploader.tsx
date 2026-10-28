@@ -7,6 +7,7 @@ import {
   PHOTO_TYPES,
   uploadProductImages,
 } from "@/lib/uploads.api";
+import { prepareImage } from "@/lib/image-prep";
 import { toast } from "@/store/toast.store";
 import { Icon } from "@/components/ui/Icon";
 import { apiErrorMessage, cn } from "@/lib/utils";
@@ -39,12 +40,17 @@ export function ImageUploader({
       return toast.error(
         `${wrongType.name} isn't a JPEG, PNG, WebP or AVIF image.`,
       );
-    const tooBig = files.find((f) => f.size > MAX_PHOTO_BYTES);
-    if (tooBig) return toast.error(`${tooBig.name} is larger than 5 MB.`);
 
     setProgress(0);
     try {
-      const urls = await uploadProductImages(files, setProgress);
+      // Trim solid borders and shrink huge photos before checking the size.
+      const prepared = await Promise.all(files.map(prepareImage));
+      const tooBig = prepared.find((f) => f.size > MAX_PHOTO_BYTES);
+      if (tooBig) {
+        toast.error(`${tooBig.name} is larger than 5 MB, even after resizing.`);
+        return;
+      }
+      const urls = await uploadProductImages(prepared, setProgress);
       await onUploaded(urls);
       toast.success(
         `${urls.length} photo${urls.length === 1 ? "" : "s"} uploaded`,
