@@ -31,6 +31,19 @@ const nextConfig: NextConfig = {
 
   // Static security headers for every response. The Content-Security-Policy
   // depends on the environment, so it's set in src/middleware.ts.
+  // With NEXT_PUBLIC_API_PROXY=1, /api/* on this site is forwarded to the
+  // API, so the browser only ever talks to one site and the sign-in cookie
+  // is first-party (see src/lib/env.ts).
+  async rewrites() {
+    if (process.env.NEXT_PUBLIC_API_PROXY !== "1") return [];
+    return [
+      {
+        source: "/api/:path*",
+        destination: `${API_URL.origin}/:path*`,
+      },
+    ];
+  },
+
   async headers() {
     return [
       {

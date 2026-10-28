@@ -95,6 +95,6 @@ export const config = {
   matcher: [
     // Static assets and metadata routes (icons, share images, manifest)
     // need no CSP or session rewrites.
-    "/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-icon|opengraph-image|twitter-image|manifest.webmanifest|robots.txt|sitemap.xml).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-icon|opengraph-image|twitter-image|manifest.webmanifest|robots.txt|sitemap.xml|api/).*)",
   ],
 };

@@ -300,6 +300,18 @@ describe("sessions", () => {
     expect(cookie.toLowerCase()).toContain("samesite=lax");
   });
 
+  test("COOKIE_PATH follows a proxied API (web app serves it under /api)", async () => {
+    process.env.COOKIE_PATH = "/api/auth";
+    try {
+      const res = await api("POST", "/auth/login", {
+        body: { email: (await createUser(t)).email, password: PASSWORD },
+      });
+      expect(res.headers.get("set-cookie") ?? "").toContain("Path=/api/auth");
+    } finally {
+      delete process.env.COOKIE_PATH;
+    }
+  });
+
   test("a reload mid-refresh doesn't log the user out (rotation grace)", async () => {
     const user = await createUser(t);
     // The first refresh rotates the token, but its response "never arrives"…
