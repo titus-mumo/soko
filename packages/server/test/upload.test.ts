@@ -106,6 +106,21 @@ describe.skipIf(!storageConfigured())(
       expect(res.status).toBe(413);
     });
 
+    test("a bad storage key gets a reason the admin can act on", async () => {
+      const real = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      process.env.SUPABASE_SERVICE_ROLE_KEY = "sb_secret_not-a-real-key";
+      try {
+        const res = await upload(admin.token, [
+          { name: "a.png", bytes: PNG, type: "image/png" },
+        ]);
+        expect(res.status).toBe(502);
+        const { message } = (await res.json()) as { message: string };
+        expect(message).toMatch(/SUPABASE_SERVICE_ROLE_KEY|SUPABASE_URL/);
+      } finally {
+        process.env.SUPABASE_SERVICE_ROLE_KEY = real;
+      }
+    });
+
     test("is admin-only", async () => {
       const png = [{ name: "a.png", bytes: PNG, type: "image/png" }];
       expect((await upload(buyer.token, png)).status).toBe(403);

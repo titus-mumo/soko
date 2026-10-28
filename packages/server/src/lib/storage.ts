@@ -52,10 +52,38 @@ function config() {
 
 export const storageConfigured = () => config() !== null;
 
-const headers = (key: string) => ({
-  Authorization: `Bearer ${key}`,
-  apikey: key,
-});
+/** A storage failure with a reason fit to show an admin. */
+export class StorageError extends Error {}
+
+/** Turns a Storage API error response into a short, actionable reason. */
+async function storageError(
+  what: string,
+  res: Response,
+): Promise<StorageError> {
+  const text = (await res.text()).slice(0, 300);
+  console.error(`Storage ${what} failed: ${res.status} ${text}`);
+  const hint =
+    res.status === 401 ||
+    res.status === 403 ||
+    /jws|jwt|signature|unauthori[sz]ed|row-level security/i.test(text)
+      ? "Storage rejected the server's key — check SUPABASE_SERVICE_ROLE_KEY is the service_role / secret key (not anon/publishable) for the project in SUPABASE_URL."
+      : res.status === 404
+        ? "Storage wasn't found at SUPABASE_URL — it should be the project's https://<ref>.supabase.co address, not the database URL."
+        : res.status === 413
+          ? "Storage refused the file size."
+          : `Storage ${what} failed (${res.status}): ${text}`;
+  return new StorageError(hint);
+}
+
+/**
+ * Auth headers for the Storage API. Legacy service_role keys are JWTs and go
+ * in both headers. Newer secret keys (sb_secret_…) aren't JWTs: they must be
+ * sent only as `apikey` — as a Bearer token they're rejected.
+ */
+const headers = (key: string): Record<string, string> =>
+  key.startsWith("eyJ")
+    ? { Authorization: `Bearer ${key}`, apikey: key }
+    : { apikey: key };
 
 let bucketReady = false;
 
@@ -77,7 +105,10 @@ async function ensureBucket(url: string, key: string) {
   if (!res.ok && res.status !== 409) {
     const text = await res.text();
     if (!/already exists|Duplicate/i.test(text))
-      throw new Error(`Storage bucket setup failed: ${res.status} ${text}`);
+      throw await storageError(
+        "bucket setup",
+        new Response(text, { status: res.status }),
+      );
   }
   bucketReady = true;
 }
