@@ -132,13 +132,20 @@ export async function HomeView({ hero }: { hero: boolean }) {
           />
           {products.length > 0 ? (
             <ProductGrid>
-              {products.map((p, i) => (
-                <ProductCard
-                  key={p.id}
-                  {...fromCatalogue(p)}
-                  priority={i < 4}
-                />
-              ))}
+              {products.map((p, i) =>
+                // The first card is a stop on the welcome tour.
+                i === 0 ? (
+                  <div key={p.id} data-tour="product">
+                    <ProductCard {...fromCatalogue(p)} priority />
+                  </div>
+                ) : (
+                  <ProductCard
+                    key={p.id}
+                    {...fromCatalogue(p)}
+                    priority={i < 4}
+                  />
+                ),
+              )}
             </ProductGrid>
           ) : (
             <EmptyState
@@ -152,7 +159,7 @@ export async function HomeView({ hero }: { hero: boolean }) {
 
         {/* Browse by category */}
         {categories.length > 0 && (
-          <section aria-labelledby="categories-heading">
+          <section aria-labelledby="categories-heading" data-tour="categories">
             <SectionHeading
               id="categories-heading"
               title="Shop by category"

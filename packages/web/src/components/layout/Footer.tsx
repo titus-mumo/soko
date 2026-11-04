@@ -25,6 +25,7 @@ const COLUMNS: { title: string; links: { href: string; label: string }[] }[] = [
       { href: "/delivery", label: "Delivery zones and fees" },
       { href: "/orders", label: "Track an order" },
       { href: "/disputes", label: "Report a problem" },
+      { href: "#tour", label: "Take the tour" },
     ],
   },
 ];

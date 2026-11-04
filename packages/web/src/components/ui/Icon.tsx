@@ -300,6 +300,12 @@ const PATHS = {
     </>
   ),
   zap: <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />,
+  send: (
+    <>
+      <path d="m22 2-7 20-4-9-9-4z" />
+      <path d="M22 2 11 13" />
+    </>
+  ),
 } as const;
 
 export type IconName = keyof typeof PATHS;

@@ -1,8 +1,10 @@
 import Elysia, { t } from "elysia";
 import { pageParams, paged } from "../../lib/paging";
 import { adminPlugin } from "../../middleware/auth.middleware";
+import { userPick } from "../../lib/views";
 import {
   getAllUsers,
+  searchUsers,
   getUserById,
   updateUserRole,
   verifyUser,
@@ -14,6 +16,14 @@ export const GetAllUsers = new Elysia()
   .get("/admin", async (ctx) => {
     const { query } = ctx as any;
     return paged(await getAllUsers(pageParams(query)));
+  });
+
+export const SearchUsers = new Elysia()
+  .use(adminPlugin)
+  .get("/admin/search", async (ctx) => {
+    const { query } = ctx as any;
+    const users = await searchUsers(String(query.q ?? ""));
+    return { success: true, data: users.map(userPick) };
   });
 
 export const GetUserByIdAdmin = new Elysia()

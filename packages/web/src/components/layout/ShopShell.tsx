@@ -17,6 +17,7 @@ import { ToastContainer } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
 import { Navbar } from "./Navbar";
 import { Footer } from "./Footer";
+import { Tour } from "@/components/tour/Tour";
 
 /**
  * Public storefront shell: navbar, page, footer. No auth gate — guests and
@@ -33,8 +34,8 @@ export function ShopShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const restore = async () => {
-      const { user, accessToken, logout } = useAuthStore.getState();
-      if (!user) {
+      const { user: remembered, accessToken, logout } = useAuthStore.getState();
+      if (!remembered) {
         // Guests: show what's in their browser cart on the badge.
         syncGuestCartBadge();
         return;
@@ -51,6 +52,12 @@ export function ShopShell({ children }: { children: React.ReactNode }) {
           }
           return;
         }
+      }
+      // The refresh may have updated (or ended) the remembered account.
+      const user = useAuthStore.getState().user;
+      if (!user) {
+        syncGuestCartBadge();
+        return;
       }
       // Signed in from before the session hint existed (or the cookie was
       // cleared): set it and re-render this page in the app layout.
@@ -87,6 +94,7 @@ export function ShopShell({ children }: { children: React.ReactNode }) {
       </main>
       <Footer />
       <ToastContainer />
+      <Tour />
     </div>
   );
 }

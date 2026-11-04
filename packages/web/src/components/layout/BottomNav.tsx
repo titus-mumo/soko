@@ -49,6 +49,13 @@ export function BottomNav() {
             <Link
               key={tab.href}
               href={tab.href}
+              data-tour={
+                tab.badge === "cart"
+                  ? "cart"
+                  : tab.href === "/orders"
+                    ? "orders"
+                    : undefined
+              }
               aria-current={active ? "page" : undefined}
               className={cn(
                 "relative flex min-h-[44px] flex-1 flex-col items-center justify-center gap-1 text-2xs font-medium transition-colors duration-150",

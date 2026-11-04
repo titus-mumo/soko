@@ -66,35 +66,35 @@ export function TopBar({ onOpenMenu }: { onOpenMenu?: () => void }) {
 
           {user ? (
             <>
-              {!isAdmin && (
-                <Link
-                  href="/notifications"
-                  className="tap-target relative flex h-9 w-9 items-center justify-center rounded-lg text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
-                >
-                  <Icon
-                    name="bell"
-                    size={18}
-                    className={cn(
-                      unread > 0 &&
-                        "origin-top animate-ring [animation-iteration-count:1]",
-                    )}
-                  />
-                  <span className="sr-only">
-                    Notifications{unread > 0 ? `, ${unread} unread` : ""}
-                  </span>
-                  {unread > 0 && (
-                    <span
-                      aria-hidden="true"
-                      className="tabular absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-600 px-1 font-mono text-[9px] font-semibold text-white ring-2 ring-zinc-50 dark:ring-zinc-950"
-                    >
-                      {unread > 9 ? "9+" : unread}
-                    </span>
+              <Link
+                href={isAdmin ? "/admin/inbox" : "/notifications"}
+                data-tour={isAdmin ? undefined : "notifications"}
+                className="tap-target relative flex h-9 w-9 items-center justify-center rounded-lg text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
+              >
+                <Icon
+                  name="bell"
+                  size={18}
+                  className={cn(
+                    unread > 0 &&
+                      "origin-top animate-ring [animation-iteration-count:1]",
                   )}
-                </Link>
-              )}
+                />
+                <span className="sr-only">
+                  Notifications{unread > 0 ? `, ${unread} unread` : ""}
+                </span>
+                {unread > 0 && (
+                  <span
+                    aria-hidden="true"
+                    className="tabular absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-600 px-1 font-mono text-[9px] font-semibold text-white ring-2 ring-zinc-50 dark:ring-zinc-950"
+                  >
+                    {unread > 9 ? "9+" : unread}
+                  </span>
+                )}
+              </Link>
               {!isAdmin && (
                 <Link
                   href="/cart"
+                  data-tour="cart"
                   className="tap-target relative flex h-9 w-9 items-center justify-center rounded-lg text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
                 >
                   <Icon name="cart" size={18} />

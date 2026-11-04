@@ -239,7 +239,16 @@ export const ROTATION_GRACE_MS = 30_000;
 export async function refreshTokens(
   token: string,
   meta: { userAgent?: string; ip?: string },
-): Promise<AuthTokens | "token_not_found" | "token_revoked" | "token_expired"> {
+): Promise<
+  | (AuthTokens & {
+      user: NonNullable<
+        Awaited<ReturnType<typeof userRepository.findUserById>>
+      >;
+    })
+  | "token_not_found"
+  | "token_revoked"
+  | "token_expired"
+> {
   // Verify the JWT signature first before hitting the DB.
   const payload = await verifyRefreshToken(token);
   if (!payload) return "token_expired";
@@ -261,7 +270,13 @@ export async function refreshTokens(
     ) {
       const user = await userRepository.findUserById(payload.userId);
       if (!user) return "token_not_found";
-      return await issueTokens(payload.userId, user.role, payload.family, meta);
+      const tokens = await issueTokens(
+        payload.userId,
+        user.role,
+        payload.family,
+        meta,
+      );
+      return { ...tokens, user };
     }
     // Otherwise it's reuse of an old token — a previous one in the chain may
     // have been stolen. Revoke the whole session.
@@ -274,7 +289,7 @@ export async function refreshTokens(
   await refreshTokenRepository.revokeToken(token);
 
   const user = await userRepository.findUserById(payload.userId);
-  if (!user) throw new Error("User not found");
+  if (!user) return "token_not_found";
 
   // Reuse the same family so the token chain stays traceable.
   const tokens = await issueTokens(
@@ -284,7 +299,7 @@ export async function refreshTokens(
     meta,
   );
 
-  return tokens;
+  return { ...tokens, user };
 }
 
 // ─────────────────────────────────────────

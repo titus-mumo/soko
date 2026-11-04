@@ -125,6 +125,15 @@ export default function CookiesPage() {
                   </tr>
                   <tr>
                     <td>
+                      <code>soko:tour-done</code>
+                    </td>
+                    <td>
+                      That you&apos;ve seen the welcome tour, so it isn&apos;t
+                      shown again.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
                       <code>soko_sidebar_collapsed</code>
                     </td>
                     <td>Whether you collapsed the side menu.</td>

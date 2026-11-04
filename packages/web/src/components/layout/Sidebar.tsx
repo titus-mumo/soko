@@ -71,6 +71,7 @@ function NavLink({
       <Link
         href={item.href}
         onClick={onNavigate}
+        data-tour={item.href === "/orders" ? "orders" : undefined}
         aria-current={active ? "page" : undefined}
         aria-label={
           collapsed
@@ -187,6 +188,7 @@ export function Sidebar({
           type="button"
           onClick={onToggleCollapsed}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          data-tour="collapse"
           aria-expanded={!collapsed}
           className="absolute -right-3 top-1/2 z-10 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-zinc-300 bg-white text-zinc-500 shadow-sm transition-colors hover:text-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
         >
@@ -200,6 +202,7 @@ export function Sidebar({
 
       <nav
         aria-label="Main"
+        data-tour="sidebar"
         className={cn(
           "flex-1 pb-4 pt-2",
           collapsed ? "overflow-visible px-3" : "overflow-y-auto px-3",

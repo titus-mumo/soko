@@ -248,7 +248,7 @@ function SearchCombobox({
   let index = -1;
 
   return (
-    <div ref={rootRef} className={cn("relative", className)}>
+    <div ref={rootRef} data-tour="search" className={cn("relative", className)}>
       <form
         role="search"
         onSubmit={(e) => {

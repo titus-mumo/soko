@@ -2,7 +2,7 @@ import { pageMetadata } from "@/lib/seo";
 import View from "./view";
 
 export const metadata = pageMetadata({
-  title: "Send notifications",
+  title: "Send a notification",
   description: "Message users or broadcast announcements.",
   path: "/admin/notifications",
   noIndex: true,

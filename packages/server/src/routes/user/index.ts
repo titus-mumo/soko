@@ -13,6 +13,7 @@ import {
 } from "./userAddresses";
 import {
   GetAllUsers,
+  SearchUsers,
   GetUserByIdAdmin,
   UpdateUserRole,
   VerifyUser,
@@ -33,6 +34,8 @@ export const userRoutes = new Elysia().group("/users", (app) =>
     .use(RemoveAddress)
     // Admin
     .use(GetAllUsers)
+    // Before /admin/:userId so "search" isn't read as an id.
+    .use(SearchUsers)
     .use(GetUserByIdAdmin)
     .use(UpdateUserRole)
     .use(VerifyUser)

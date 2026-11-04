@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { sendNotification, broadcastNotification } from "@/lib/admin.api";
+import {
+  sendNotification,
+  broadcastNotification,
+  type UserPick,
+} from "@/lib/admin.api";
+import { UserPicker } from "@/components/admin/UserPicker";
 import { toast } from "@/store/toast.store";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -22,7 +27,7 @@ const CHANNELS: { value: NotificationChannel; label: string }[] = [
 ];
 
 const INIT_SINGLE = {
-  userId: "",
+  to: [] as UserPick[],
   type: "system",
   title: "",
   body: "",
@@ -30,7 +35,7 @@ const INIT_SINGLE = {
 };
 
 const INIT_BROADCAST = {
-  userIds: "",
+  to: [] as UserPick[],
   type: "system",
   title: "",
   message: "",
@@ -72,20 +77,26 @@ export default function AdminNotificationsPage() {
 
   const handleSingle = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!single.userId.trim() || !single.title.trim() || !single.body.trim()) {
-      setSingleError("User ID, title and message are required.");
+    const recipient = single.to[0];
+    if (!recipient) {
+      setSingleError("Choose who to send it to.");
+      return;
+    }
+    if (!single.title.trim() || !single.body.trim()) {
+      setSingleError("Title and message are required.");
       return;
     }
     setSingleSaving(true);
     setSingleError(null);
     try {
       await sendNotification({
-        ...single,
-        userId: single.userId.trim(),
+        userId: recipient.id,
+        type: single.type,
+        channel: single.channel,
         title: single.title.trim(),
         body: single.body.trim(),
       });
-      toast.success("Notification sent");
+      toast.success(`Notification sent to ${recipient.name}`);
       setSingle(INIT_SINGLE);
     } catch (err) {
       setSingleError(apiErrorMessage(err, "Failed to send notification."));
@@ -96,12 +107,9 @@ export default function AdminNotificationsPage() {
 
   const handleBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
-    const userIds = broadcast.userIds
-      .split(/[\n,]+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
+    const userIds = broadcast.to.map((u) => u.id);
     if (userIds.length === 0) {
-      setBroadcastError("Provide at least one user ID.");
+      setBroadcastError("Add at least one recipient.");
       return;
     }
     if (!broadcast.title.trim() || !broadcast.message.trim()) {
@@ -111,7 +119,13 @@ export default function AdminNotificationsPage() {
     setBroadcastSaving(true);
     setBroadcastError(null);
     try {
-      await broadcastNotification({ ...broadcast, userIds });
+      await broadcastNotification({
+        userIds,
+        type: broadcast.type,
+        channel: broadcast.channel,
+        title: broadcast.title.trim(),
+        message: broadcast.message.trim(),
+      });
       toast.success(
         `Broadcast sent to ${userIds.length} user${userIds.length !== 1 ? "s" : ""}`,
       );
@@ -129,8 +143,8 @@ export default function AdminNotificationsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Notifications"
-        description="Send a message to one user or broadcast to many"
+        title="Send a notification"
+        description="Message one person or broadcast to many"
       />
 
       <FilterChips
@@ -145,14 +159,10 @@ export default function AdminNotificationsPage() {
 
       {mode === "single" ? (
         <form onSubmit={handleSingle} className={formCls} noValidate>
-          <Input
-            label="User ID"
-            value={single.userId}
-            onChange={(e) =>
-              setSingle((p) => ({ ...p, userId: e.target.value }))
-            }
-            placeholder="e.g. 1ee66771-65fd-46c1-…"
-            className="font-mono"
+          <UserPicker
+            label="To"
+            value={single.to}
+            onChange={(to) => setSingle((p) => ({ ...p, to }))}
           />
           <div className="grid gap-3 sm:grid-cols-2">
             <Input
@@ -188,15 +198,11 @@ export default function AdminNotificationsPage() {
         </form>
       ) : (
         <form onSubmit={handleBroadcast} className={formCls} noValidate>
-          <Textarea
-            label="User IDs (one per line or comma-separated)"
-            rows={4}
-            className="font-mono"
-            value={broadcast.userIds}
-            onChange={(e) =>
-              setBroadcast((p) => ({ ...p, userIds: e.target.value }))
-            }
-            placeholder={"uuid-1\nuuid-2"}
+          <UserPicker
+            label="To"
+            multiple
+            value={broadcast.to}
+            onChange={(to) => setBroadcast((p) => ({ ...p, to }))}
           />
           <div className="grid gap-3 sm:grid-cols-2">
             <Input

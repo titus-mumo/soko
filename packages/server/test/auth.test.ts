@@ -288,6 +288,36 @@ describe("sessions", () => {
     expect(me.status).toBe(200);
   });
 
+  test("POST /auth/refresh says whose session it is (and nothing private)", async () => {
+    const user = await createUser(t);
+    const data = ok(
+      await api("POST", "/auth/refresh", { cookie: user.refreshCookie }),
+    );
+    expect(data.user.id).toBe(user.id);
+    expect(data.user.email).toBe(user.email);
+    expect(data.user.passwordHash).toBeUndefined();
+  });
+
+  test("signing in to another account ends this browser's previous session", async () => {
+    const first = await createUser(t);
+    const second = await createUser(t);
+    // Same browser: the first account's cookie is still sent on the new sign-in.
+    const res = await api("POST", "/auth/login", {
+      cookie: first.refreshCookie,
+      body: { email: second.email, password: PASSWORD },
+    });
+    expect(ok(res).user.id).toBe(second.id);
+    // The old cookie no longer works, so it can't resurface as the first user.
+    expect(
+      (await api("POST", "/auth/refresh", { cookie: first.refreshCookie }))
+        .status,
+    ).toBe(401);
+    const refreshed = ok(
+      await api("POST", "/auth/refresh", { cookie: res.refreshCookie! }),
+    );
+    expect(refreshed.user.id).toBe(second.id);
+  });
+
   test("the refresh cookie reaches /auth/* (refresh and logout) and is HTTP-only", async () => {
     const res = await api("POST", "/auth/login", {
       body: { email: (await createUser(t)).email, password: PASSWORD },
