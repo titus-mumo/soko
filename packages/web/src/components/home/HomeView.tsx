@@ -1,9 +1,6 @@
 import Link from "next/link";
-import {
-  fetchDeliveryZones,
-  fetchCatalogue,
-  fetchRootCategories,
-} from "@/lib/server-api";
+import { fetchHomeData } from "@/lib/server-api";
+import { HOME_SNAPSHOT, localImage } from "@/lib/home-snapshot";
 import { SITE_NAME, absoluteUrl } from "@/lib/seo";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { HeroCarousel } from "@/components/home/HeroCarousel";
@@ -58,6 +55,9 @@ function SectionHeading({
   );
 }
 
+/** How long the home page waits for the API before using its snapshot. */
+const LIVE_WAIT_MS = 4000;
+
 const pill =
   "inline-flex h-10 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors duration-150";
 
@@ -66,15 +66,15 @@ const pill =
  * land straight on categories and products.
  */
 export async function HomeView({ hero }: { hero: boolean }) {
-  const [categories, products, zones] = await Promise.all([
-    fetchRootCategories(),
-    // Newest 8, card-ready, in one request.
-    fetchCatalogue({ limit: 8 }).then((page) => page.items),
-    // Only the hero uses the delivery coverage.
-    hero ? fetchDeliveryZones() : Promise.resolve([]),
-  ]);
-  const counties = new Set(zones.map((z) => z.county.trim().toLowerCase()))
-    .size;
+  // A sleeping API takes up to a minute to wake; rather than hold the page
+  // that long, show the saved snapshot and pick up live data on the next
+  // render. Photos come from this site whenever the snapshot has them.
+  const live = await fetchHomeData(LIVE_WAIT_MS);
+  const { categories, counties } = live ?? HOME_SNAPSHOT;
+  const products = (live ?? HOME_SNAPSHOT).products.map((p) => ({
+    ...p,
+    image: localImage(p.image),
+  }));
 
   return (
     <>

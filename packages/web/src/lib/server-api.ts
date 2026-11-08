@@ -166,6 +166,47 @@ async function findCategoryById(id: string): Promise<Category | null> {
   return null;
 }
 
+export interface HomeData {
+  categories: Category[];
+  products: CatalogueItem[];
+  counties: number;
+}
+
+/**
+ * Everything the home page shows, or null when the API doesn't answer
+ * within `timeoutMs` (asleep on Render, waking up, or down) — the page then
+ * renders its saved snapshot instead of making the visitor wait.
+ */
+export async function fetchHomeData(
+  timeoutMs: number,
+): Promise<HomeData | null> {
+  const signal = AbortSignal.timeout(timeoutMs);
+  const live = async <T>(path: string): Promise<T> => {
+    const res = await fetch(`${API_URL}${path}`, {
+      headers: INTERNAL_HEADERS,
+      signal,
+      next: { revalidate: REVALIDATE_SECONDS },
+    });
+    const body = (await res.json()) as ApiResponse<T>;
+    if (!res.ok || !body.success) throw new Error(`${path}: ${res.status}`);
+    return body.data;
+  };
+  try {
+    const [categories, products, zones] = await Promise.all([
+      live<Category[]>("/categories"),
+      live<CatalogueItem[]>("/products?limit=8"),
+      live<DeliveryZone[]>("/delivery/zones"),
+    ]);
+    return {
+      categories,
+      products,
+      counties: new Set(zones.map((z) => z.county.trim().toLowerCase())).size,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchDeliveryZones(): Promise<DeliveryZone[]> {
   return (await getPublic<DeliveryZone[]>("/delivery/zones")) ?? [];
 }
