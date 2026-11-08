@@ -224,6 +224,7 @@ export const buyerOrder = viewOf([
   "paymentStatus",
   "totalAmount",
   "deliveryFee",
+  "discountAmount",
   "deliveryAddressId",
   "notes",
   "createdAt",

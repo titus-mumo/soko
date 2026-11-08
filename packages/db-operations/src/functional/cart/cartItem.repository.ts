@@ -1,6 +1,6 @@
 import { db } from "src/db";
 import { cartItemsTable } from "src/schema";
-import { eq, and, isNull, sql } from "drizzle-orm";
+import { eq, and, inArray, isNull, sql } from "drizzle-orm";
 
 export type CartItem = typeof cartItemsTable.$inferSelect;
 export type NewCartItem = typeof cartItemsTable.$inferInsert;
@@ -166,6 +166,35 @@ export class CartItemRepository {
 
   // Clears all items from a cart in one query.
   // Use this after a successful order placement to empty the cart.
+  /**
+   * Takes every item out of the cart in one statement and returns them — a
+   * checkout's claim on the cart. A second, simultaneous checkout finds it
+   * already empty, so one cart can't become two orders.
+   */
+  async claimItemsByCartId(cartId: string): Promise<CartItem[]> {
+    // Only deletedAt changes: updatedAt dates the stock hold, which a
+    // restore must give back exactly as it was (not renewed).
+    return await db
+      .update(cartItemsTable)
+      .set({ deletedAt: new Date() })
+      .where(
+        and(
+          eq(cartItemsTable.cartId, cartId),
+          isNull(cartItemsTable.deletedAt),
+        ),
+      )
+      .returning();
+  }
+
+  /** Puts claimed items back (the checkout that claimed them failed). */
+  async restoreItems(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    await db
+      .update(cartItemsTable)
+      .set({ deletedAt: null })
+      .where(inArray(cartItemsTable.id, ids));
+  }
+
   async softDeleteItemsByCartId(cartId: string): Promise<boolean> {
     const res = await db
       .update(cartItemsTable)

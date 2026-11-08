@@ -25,6 +25,14 @@ export const CreatePlatformPromotion = new Elysia().use(adminPlugin).post(
       set.status = 409;
       return { success: false, message: "Promo code is already in use." };
     }
+    if (result === "invalid_value") {
+      set.status = 400;
+      return {
+        success: false,
+        message:
+          "A percent discount must be between 0 and 100, and a fixed one more than 0.",
+      };
+    }
     if (!result) {
       set.status = 500;
       return { success: false, message: "Failed to create promotion." };
@@ -39,7 +47,7 @@ export const CreatePlatformPromotion = new Elysia().use(adminPlugin).post(
       type: t.Union([t.Literal("percent"), t.Literal("fixed")]),
       value: t.String(),
       minOrderAmount: t.Optional(t.String()),
-      maxUses: t.Optional(t.Number({ minimum: 1 })),
+      maxUses: t.Optional(t.Integer({ minimum: 1 })),
       expiresAt: t.Optional(t.String()),
     }),
   },

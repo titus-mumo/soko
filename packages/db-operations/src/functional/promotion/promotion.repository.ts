@@ -1,7 +1,7 @@
 import { db } from "src/db";
 import { pageNewestFirst, type Page, type PageParams } from "../../pagination";
 import { promotionsTable } from "src/schema";
-import { eq, and, isNull, sql } from "drizzle-orm";
+import { eq, and, isNull, or, sql } from "drizzle-orm";
 
 export type Promotion = typeof promotionsTable.$inferSelect;
 export type NewPromotion = typeof promotionsTable.$inferInsert;
@@ -135,6 +135,43 @@ export class PromotionRepository {
   // Atomically increments usesCount by 1 on redemption.
   // Always call this inside the same transaction as the order creation
   // to prevent over-redemption under concurrent requests.
+  /**
+   * Uses the promotion once, if it's still live and has a use left — in one
+   * conditional update, so two checkouts can't both take the last use.
+   */
+  async redeem(id: string): Promise<boolean> {
+    const res = await db
+      .update(promotionsTable)
+      .set({
+        usesCount: sql`${promotionsTable.usesCount} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(promotionsTable.id, id),
+          eq(promotionsTable.isActive, true),
+          isNull(promotionsTable.deletedAt),
+          or(
+            isNull(promotionsTable.maxUses),
+            sql`${promotionsTable.usesCount} < ${promotionsTable.maxUses}`,
+          ),
+        ),
+      )
+      .returning({ id: promotionsTable.id });
+    return res.length > 0;
+  }
+
+  /** Gives a use back (the order that used it failed or was cancelled). */
+  async release(id: string): Promise<void> {
+    await db
+      .update(promotionsTable)
+      .set({
+        usesCount: sql`greatest(${promotionsTable.usesCount} - 1, 0)`,
+        updatedAt: new Date(),
+      })
+      .where(eq(promotionsTable.id, id));
+  }
+
   async incrementUsesCount(id: string): Promise<FindPromotionResponse> {
     const [res] = await db
       .update(promotionsTable)

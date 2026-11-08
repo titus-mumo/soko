@@ -64,9 +64,10 @@ const App = new Elysia()
   .onError(({ code, error, set }) => {
     // Expected 4xx (validation, not found) would flood test output.
     if (
-      Bun.env.NODE_ENV !== "test" ||
-      code === "INTERNAL_SERVER_ERROR" ||
-      code === "UNKNOWN"
+      !isBadValue(error) &&
+      (Bun.env.NODE_ENV !== "test" ||
+        code === "INTERNAL_SERVER_ERROR" ||
+        code === "UNKNOWN")
     )
       console.error(error);
     // Error bodies say what went wrong in plain words — never the schema,
@@ -93,6 +94,12 @@ const App = new Elysia()
         return { success: false, message: "Malformed request body." };
 
       default:
+        // The database refusing a value (a malformed ID in the path, a
+        // number out of range) is a bad request, not a crash.
+        if (isBadValue(error)) {
+          set.status = 400;
+          return { success: false, message: "Invalid ID or value." };
+        }
         set.status = 500;
         return {
           success: false,
@@ -119,5 +126,15 @@ const App = new Elysia()
   .use(searchRoutes)
   .use(auditRoutes)
   .use(uploadRoutes);
+
+/**
+ * Postgres rejected a value's form: 22P02 (not a valid uuid/integer), 22003
+ * (number out of range). Drizzle may wrap the driver's error in `cause`.
+ */
+function isBadValue(error: unknown): boolean {
+  for (let e: any = error, depth = 0; e && depth < 3; e = e.cause, depth++)
+    if (e.code === "22P02" || e.code === "22003") return true;
+  return false;
+}
 
 export default App;

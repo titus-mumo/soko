@@ -1,5 +1,6 @@
 "use client";
 
+import axios from "axios";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -191,6 +192,18 @@ export default function CheckoutPage() {
       orderId = order.orderId;
       total = order.totalAmount;
     } catch (err) {
+      // The code stopped working since it was previewed (used up, expired):
+      // drop it so the summary shows the real total and the buyer can
+      // place the order without it.
+      if (
+        axios.isAxiosError(err) &&
+        err.response?.data?.code === "PROMO_INVALID"
+      ) {
+        setPromo(null);
+        savePendingPromo(null);
+        setPromoError(apiErrorMessage(err, "That promo code can't be used."));
+        return;
+      }
       setServerError(apiErrorMessage(err, "Failed to place order"));
       return;
     }

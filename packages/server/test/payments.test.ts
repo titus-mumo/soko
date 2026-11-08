@@ -3,13 +3,14 @@ import {
   api,
   createMarket,
   createUser,
+  deliverOrder,
   missingId,
   ok,
   placeOrder,
   Tracker,
   type Market,
 } from "./helpers";
-import { DARAJA_REJECTED_PHONE } from "./setup";
+import { CALLBACK_PATH, DARAJA_REJECTED_PHONE, lastStk } from "./setup";
 
 const t = new Tracker();
 let m: Market;
@@ -36,7 +37,11 @@ async function initiate(orderId: string) {
 }
 
 /** What Safaricom POSTs to the callback URL. */
-const callback = (checkoutRequestId: string, resultCode: number) => ({
+const callback = (
+  checkoutRequestId: string,
+  resultCode: number,
+  amount = 1,
+) => ({
   Body: {
     stkCallback: {
       MerchantRequestID: `mock-merchant-${checkoutRequestId}`,
@@ -49,7 +54,7 @@ const callback = (checkoutRequestId: string, resultCode: number) => ({
       ...(resultCode === 0 && {
         CallbackMetadata: {
           Item: [
-            { Name: "Amount", Value: 1 },
+            { Name: "Amount", Value: amount },
             { Name: "MpesaReceiptNumber", Value: "TST123ABC" },
             { Name: "PhoneNumber", Value: 254712345678 },
           ],
@@ -105,7 +110,7 @@ describe("POST /payments/callback", () => {
     await initiate(orderId);
     const checkoutId = await checkoutRequestIdFor(orderId);
 
-    const res = await api("POST", "/payments/callback", {
+    const res = await api("POST", CALLBACK_PATH, {
       body: callback(checkoutId, 0),
     });
     expect(res.status).toBe(200);
@@ -126,7 +131,7 @@ describe("POST /payments/callback", () => {
   test("a paid order can't be charged again", async () => {
     const { orderId } = await placeOrder(m);
     await initiate(orderId);
-    await api("POST", "/payments/callback", {
+    await api("POST", CALLBACK_PATH, {
       body: callback(await checkoutRequestIdFor(orderId), 0),
     });
     const res = await api("POST", "/payments/me/initiate", {
@@ -139,7 +144,7 @@ describe("POST /payments/callback", () => {
   test("a failed callback marks the payment failed and keeps the order", async () => {
     const { orderId } = await placeOrder(m);
     await initiate(orderId);
-    await api("POST", "/payments/callback", {
+    await api("POST", CALLBACK_PATH, {
       body: callback(await checkoutRequestIdFor(orderId), 1032),
     });
     const payment = ok(
@@ -154,7 +159,7 @@ describe("POST /payments/callback", () => {
   });
 
   test("an unmatched callback is acknowledged but changes nothing", async () => {
-    const res = await api("POST", "/payments/callback", {
+    const res = await api("POST", CALLBACK_PATH, {
       body: callback(`ws_CO_unknown_${missingId()}`, 0),
     });
     expect(res.status).toBe(200);
@@ -162,7 +167,7 @@ describe("POST /payments/callback", () => {
   });
 
   test("a malformed callback is still acknowledged", async () => {
-    const res = await api("POST", "/payments/callback", {
+    const res = await api("POST", CALLBACK_PATH, {
       body: { junk: true },
     });
     expect(res.status).toBe(200);
@@ -201,3 +206,124 @@ async function checkoutRequestIdFor(orderId: string): Promise<string> {
   if (payment === "payment_not_found") throw new Error("no payment");
   return (payment.metadata as { CheckoutRequestID: string }).CheckoutRequestID;
 }
+
+describe("callback safety", () => {
+  const order = async (orderId: string) =>
+    ok(await api("GET", `/orders/me/${orderId}`, { token: m.buyer.token }))
+      .order;
+  const paymentOf = async (orderId: string) =>
+    ok(await api("GET", `/payments/me/${orderId}`, { token: m.buyer.token }));
+  const adminInbox = async () =>
+    ok(await api("GET", "/notifications/me", { token: m.admin.token })) as {
+      type: string;
+      body: string;
+    }[];
+  const ref = (orderId: string) => orderId.slice(-8).toUpperCase();
+  const succeed = async (orderId: string, amount = 1) =>
+    api("POST", CALLBACK_PATH, {
+      body: callback(await checkoutRequestIdFor(orderId), 0, amount),
+    });
+
+  test("Safaricom is given a callback URL carrying the secret", async () => {
+    const { orderId } = await placeOrder(m);
+    await initiate(orderId);
+    expect(lastStk.callbackUrl).toContain(
+      `key=${process.env.DARAJA_CALLBACK_SECRET}`,
+    );
+  });
+
+  test("a callback without the secret is rejected and changes nothing", async () => {
+    const { orderId } = await placeOrder(m);
+    await initiate(orderId);
+    const body = callback(await checkoutRequestIdFor(orderId), 0);
+    for (const path of ["/payments/callback", "/payments/callback?key=guess"])
+      expect((await api("POST", path, { body })).status).toBe(403);
+    expect((await paymentOf(orderId)).status).toBe("pending");
+    expect((await order(orderId)).status).toBe("pending");
+  });
+
+  test("paying less than requested doesn't confirm the order; admins are told", async () => {
+    const { orderId } = await placeOrder(m);
+    await initiate(orderId);
+    await succeed(orderId, 0);
+    expect((await paymentOf(orderId)).status).toBe("pending");
+    expect((await order(orderId)).status).toBe("pending");
+    expect(
+      (await adminInbox()).some(
+        (n) => n.type === "payment_mismatch" && n.body.includes(ref(orderId)),
+      ),
+    ).toBe(true);
+  });
+
+  test("a replayed success callback doesn't undo later progress", async () => {
+    const placed = await placeOrder(m);
+    await initiate(placed.orderId);
+    await succeed(placed.orderId);
+    await deliverOrder(m, placed);
+    await succeed(placed.orderId);
+    expect((await order(placed.orderId)).status).toBe("delivered");
+  });
+
+  test("a late failure callback doesn't un-pay a paid order", async () => {
+    const { orderId } = await placeOrder(m);
+    await initiate(orderId);
+    await succeed(orderId);
+    await api("POST", CALLBACK_PATH, {
+      body: callback(await checkoutRequestIdFor(orderId), 1032),
+    });
+    expect((await paymentOf(orderId)).status).toBe("paid");
+    expect((await order(orderId)).paymentStatus).toBe("paid");
+  });
+
+  test("a cancelled order can't be paid for", async () => {
+    const { orderId } = await placeOrder(m);
+    ok(
+      await api("PATCH", `/orders/me/${orderId}/cancel`, {
+        token: m.buyer.token,
+      }),
+    );
+    const res = await api("POST", "/payments/me/initiate", {
+      token: m.buyer.token,
+      body: { orderId, phone: m.buyer.phone },
+    });
+    expect(res.status).toBe(400);
+  });
+
+  test("a payment landing after cancelling stays cancelled and is flagged for refund", async () => {
+    const { orderId } = await placeOrder(m);
+    await initiate(orderId);
+    ok(
+      await api("PATCH", `/orders/me/${orderId}/cancel`, {
+        token: m.buyer.token,
+      }),
+    );
+    await succeed(orderId);
+    const o = await order(orderId);
+    expect(o.status).toBe("cancelled");
+    expect(o.paymentStatus).toBe("paid");
+    expect(
+      (await adminInbox()).some(
+        (n) => n.type === "refund_due" && n.body.includes(ref(orderId)),
+      ),
+    ).toBe(true);
+  });
+
+  test("cancelling a paid order asks admins to refund instead of claiming it's done", async () => {
+    const { orderId } = await placeOrder(m);
+    await initiate(orderId);
+    await succeed(orderId);
+    ok(
+      await api("PATCH", `/orders/me/${orderId}/cancel`, {
+        token: m.buyer.token,
+      }),
+    );
+    const o = await order(orderId);
+    expect(o.status).toBe("cancelled");
+    expect(o.paymentStatus).toBe("paid");
+    expect(
+      (await adminInbox()).some(
+        (n) => n.type === "refund_due" && n.body.includes(ref(orderId)),
+      ),
+    ).toBe(true);
+  });
+});

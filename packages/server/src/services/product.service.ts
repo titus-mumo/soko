@@ -156,14 +156,22 @@ export async function getCatalogueCounts() {
 // Resolves a variant to its product and primary image. Cart and order
 // items only carry a variant id, so the client needs this to render them.
 export async function getVariantDetails(variantId: string) {
-  const variant = await productVariantRepository.findVariantById(variantId);
+  // Orders (and the hub) keep pointing at products removed since: those
+  // still need a name and photo there, but show nothing left to buy.
+  const variant =
+    await productVariantRepository.findVariantByIdEvenRemoved(variantId);
   if (variant === "variant_not_found") return "variant_not_found" as const;
 
-  const product = await productRepository.findProductById(variant.productId);
+  const product = await productRepository.findProductByIdEvenRemoved(
+    variant.productId,
+  );
   if (product === "product_not_found") return "variant_not_found" as const;
+  const removed = !!(variant.deletedAt || product.deletedAt);
 
   const image = await productImageRepository.findPrimaryImage(product.id);
-  const available = await stockRepository.availableQuantities([variant.id]);
+  const available = removed
+    ? new Map<string, number>()
+    : await stockRepository.availableQuantities([variant.id]);
 
   return {
     variant: { ...variant, availableQuantity: available.get(variant.id) ?? 0 },

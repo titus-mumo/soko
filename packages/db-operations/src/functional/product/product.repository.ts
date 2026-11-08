@@ -81,6 +81,15 @@ export class ProductRepository {
     return res ?? null;
   }
 
+  /** Also finds a removed product — orders still need to show what it was. */
+  async findProductByIdEvenRemoved(id: string): Promise<FindProductResponse> {
+    const [res] = await db
+      .select()
+      .from(productsTable)
+      .where(eq(productsTable.id, id));
+    return res ?? "product_not_found";
+  }
+
   async findProductById(id: string): Promise<FindProductResponse> {
     const [res] = await db
       .select()

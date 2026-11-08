@@ -370,6 +370,12 @@ export default function OrderDetailPage() {
                 status={payment?.status ?? order.paymentStatus}
               />
             </div>
+            {order.status === "cancelled" && order.paymentStatus === "paid" && (
+              <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+                This order was cancelled after you paid. We'll refund{" "}
+                {formatKES(order.totalAmount)} to your M-Pesa.
+              </p>
+            )}
             <dl className="mt-4 space-y-2.5 text-sm">
               <div className="flex justify-between">
                 <dt className="text-zinc-600 dark:text-zinc-400">Method</dt>

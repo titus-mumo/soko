@@ -204,6 +204,8 @@ export interface Order extends Timestamps {
   paymentStatus: PaymentStatus;
   totalAmount: string;
   deliveryFee: string;
+  /** Promo code savings, already taken off totalAmount. */
+  discountAmount?: string;
   notes?: string | null;
 }
 

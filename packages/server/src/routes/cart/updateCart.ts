@@ -42,7 +42,7 @@ export const UpdateCartItemQuantity = new Elysia().use(authPlugin).patch(
   },
   {
     body: t.Object({
-      quantity: t.Number({ minimum: 0 }),
+      quantity: t.Integer({ minimum: 0, maximum: 1000 }),
     }),
   },
 );
@@ -82,7 +82,7 @@ export const AdjustCartItemQuantity = new Elysia().use(authPlugin).patch(
   },
   {
     body: t.Object({
-      delta: t.Number(),
+      delta: t.Integer({ minimum: -1000, maximum: 1000 }),
     }),
   },
 );

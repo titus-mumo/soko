@@ -95,10 +95,12 @@ export class PaymentRepository {
   ): Promise<FindPaymentResponse> {
     const [res] = await db
       .update(paymentsTable)
-      .set({ metadata, updatedAt: new Date() })
+      // A new STK push is a new attempt: back to pending (never once paid).
+      .set({ metadata, status: "pending", updatedAt: new Date() })
       .where(
         and(
           eq(paymentsTable.orderId, orderId),
+          eq(paymentsTable.paid, false),
           isNull(paymentsTable.deletedAt),
         ),
       )
@@ -126,6 +128,9 @@ export class PaymentRepository {
       .where(
         and(
           eq(paymentsTable.orderId, orderId),
+          // Only a pending attempt settles — a replayed or late callback
+          // can't re-open, re-confirm or fail an already settled payment.
+          eq(paymentsTable.status, "pending"),
           isNull(paymentsTable.deletedAt),
         ),
       )
@@ -153,6 +158,9 @@ export class PaymentRepository {
       .where(
         and(
           eq(paymentsTable.orderId, orderId),
+          // Only a pending attempt settles — a replayed or late callback
+          // can't re-open, re-confirm or fail an already settled payment.
+          eq(paymentsTable.status, "pending"),
           isNull(paymentsTable.deletedAt),
         ),
       )

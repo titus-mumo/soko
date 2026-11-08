@@ -44,7 +44,7 @@ export const AddToCart = new Elysia().use(authPlugin).post(
   {
     body: t.Object({
       productVariantId: t.String(),
-      quantity: t.Optional(t.Number({ minimum: 1 })),
+      quantity: t.Optional(t.Integer({ minimum: 1, maximum: 1000 })),
     }),
   },
 );

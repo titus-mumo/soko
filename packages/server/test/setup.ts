@@ -24,6 +24,11 @@ export const UNREACHABLE_PHONE_SUFFIX = "0000000";
 export const VALID_OTP = "123456";
 /** Google auth codes the mock accepts; anything else fails. */
 export const GOOGLE_GOOD_CODE = "good-google-code";
+/** The secret Safaricom's callbacks carry (in the URL we give them). */
+process.env.DARAJA_CALLBACK_SECRET ??= "test-callback-secret";
+export const CALLBACK_PATH = `/payments/callback?key=${process.env.DARAJA_CALLBACK_SECRET}`;
+/** The CallBackURL of the most recent STK push, for checking it. */
+export const lastStk: { callbackUrl?: string } = {};
 /** An M-Pesa number Daraja (mock) rejects. */
 export const DARAJA_REJECTED_PHONE = "254711111111";
 
@@ -74,6 +79,7 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
           errorMessage: "Invalid PhoneNumber",
         });
       }
+      lastStk.callbackUrl = body.CallBackURL;
       const id = crypto.randomUUID();
       return Response.json({
         MerchantRequestID: `mock-merchant-${id}`,

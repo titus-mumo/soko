@@ -2,16 +2,22 @@ import { getRepositories } from "../lib/repositories";
 import type { PageParams } from "db-operations";
 import type { NewPromotion } from "db-operations";
 
-const { promotionRepository, orderRepository, notificationRepository } =
-  getRepositories();
+const { promotionRepository } = getRepositories();
 
 // ─────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────
 
+export type PromoProblem =
+  | "promotion_not_found"
+  | "promotion_inactive"
+  | "promotion_expired"
+  | "promotion_exhausted"
+  | "minimum_order_not_met";
+
 // Validates a promotion against an order amount and returns
-// the discount value if valid. Called internally at checkout.
-async function validatePromotion(
+// the discount value if valid. Used by the preview and at checkout.
+export async function validatePromotion(
   code: string,
   orderAmount: number,
 ): Promise<
@@ -106,45 +112,6 @@ export async function deletePromotion(
   return result ? "promotion_deleted" : "promotion_not_found";
 }
 
-export async function applyPromoCode(
-  userId: string,
-  orderId: string,
-  code: string,
-): Promise<
-  | "order_not_found"
-  | "promotion_not_found"
-  | "promotion_inactive"
-  | "promotion_expired"
-  | "promotion_exhausted"
-  | "minimum_order_not_met"
-  | { discount: number; finalAmount: number }
-> {
-  const order = await orderRepository.findOrderByIdAndBuyerId(orderId, userId);
-  if (order === "order_not_found") return "order_not_found";
-
-  const result = await validatePromotion(code, parseFloat(order.totalAmount));
-
-  if (typeof result === "string") return result;
-
-  // Atomically increment usesCount to prevent over-redemption
-  // under concurrent requests.
-  await promotionRepository.incrementUsesCount(result.promotionId);
-
-  // Notify the buyer of the applied discount.
-  await notificationRepository.insertNotification({
-    userId,
-    type: "promo_applied",
-    title: "Promo Code Applied!",
-    body: `You saved KES ${result.discount.toFixed(2)} on your order.`,
-    channel: "push",
-  });
-
-  return {
-    discount: result.discount,
-    finalAmount: result.finalAmount,
-  };
-}
-
 // ─────────────────────────────────────────
 // Platform Promotions (Admin)
 // ─────────────────────────────────────────
@@ -156,8 +123,15 @@ export async function createPlatformPromotion(
     "code" | "type" | "value" | "minOrderAmount" | "maxUses" | "expiresAt"
   >,
 ): Promise<
-  "code_taken" | Awaited<ReturnType<typeof promotionRepository.insertPromotion>>
+  | "code_taken"
+  | "invalid_value"
+  | Awaited<ReturnType<typeof promotionRepository.insertPromotion>>
 > {
+  const value = Number(data.value);
+  const max = data.type === "percent" ? 100 : Infinity;
+  if (!Number.isFinite(value) || value <= 0 || value > max)
+    return "invalid_value";
+
   const existing = await promotionRepository.findPromotionByCode(data.code);
   if (existing !== "promotion_not_found") return "code_taken";
 

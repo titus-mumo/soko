@@ -249,6 +249,13 @@ export const ordersTable = pgTable("orders", {
   deliveryFee: decimal("delivery_fee", { precision: 10, scale: 2 })
     .notNull()
     .default("0.00"),
+  // Promo code taken off the items (already subtracted from totalAmount).
+  discountAmount: decimal("discount_amount", { precision: 10, scale: 2 })
+    .notNull()
+    .default("0.00"),
+  promotionId: uuid("promotion_id").references(() => promotionsTable.id, {
+    onDelete: "set null",
+  }),
   notes: text("notes"),
 });
 

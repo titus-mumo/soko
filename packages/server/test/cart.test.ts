@@ -24,11 +24,11 @@ beforeAll(async () => {
 afterAll(() => t.cleanup());
 
 describe("cart", () => {
-  test("GET /cart/summary is 404 before a cart exists", async () => {
+  test("GET /cart/summary is empty before a cart exists", async () => {
     const fresh = await createUser(t);
     expect(
-      (await api("GET", "/cart/summary", { token: fresh.token })).status,
-    ).toBe(404);
+      ok(await api("GET", "/cart/summary", { token: fresh.token })),
+    ).toEqual({ items: [], itemCount: 0, subtotal: "0.00" });
   });
 
   test("GET /cart creates an empty cart on first read", async () => {

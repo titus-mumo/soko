@@ -14,13 +14,16 @@ export const GetCartItems = new Elysia()
 export const GetCartSummary = new Elysia()
   .use(authPlugin)
   .get("/summary", async (ctx) => {
-    const { userId, set } = ctx as any;
+    const { userId } = ctx as any;
     const result = await getCartSummary(userId);
 
-    if (result === "cart_not_found") {
-      set.status = 404;
-      return { success: false, message: "Cart not found." };
-    }
+    // No cart yet (a new shopper, or an admin browsing the shop) is just
+    // an empty one — not an error for every page to log.
+    if (result === "cart_not_found")
+      return {
+        success: true,
+        data: { items: [], itemCount: 0, subtotal: "0.00" },
+      };
 
     return {
       success: true,

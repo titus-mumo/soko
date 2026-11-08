@@ -11,6 +11,7 @@ import {
 } from "../../services/order.service";
 import { buyerOrder, buyerOrderItem } from "../../lib/views";
 import { shownStock } from "../../lib/views";
+import type { PromoProblem } from "../../services/promotion.service";
 
 const ORDER_STATUSES: OrderStatus[] = [
   "pending",
@@ -66,6 +67,16 @@ export const GetBuyerOrderById = new Elysia()
     };
   });
 
+/** Why a promo code didn't apply at checkout, in the buyer's words. */
+const PROMO_MESSAGES: Record<PromoProblem, string> = {
+  promotion_not_found: "That promo code doesn't exist.",
+  promotion_inactive: "That promo code is no longer active.",
+  promotion_expired: "That promo code has expired.",
+  promotion_exhausted: "That promo code has been used up.",
+  minimum_order_not_met:
+    "Your order doesn't meet the minimum amount for that promo code.",
+};
+
 export const PlaceOrder = new Elysia().use(authPlugin).post(
   "/me",
   async (ctx) => {
@@ -96,6 +107,14 @@ export const PlaceOrder = new Elysia().use(authPlugin).post(
       return {
         success: false,
         message: "One or more products are no longer available.",
+      };
+    }
+    if (typeof result === "object" && "promo" in result) {
+      set.status = 400;
+      return {
+        success: false,
+        code: "PROMO_INVALID",
+        message: PROMO_MESSAGES[result.promo],
       };
     }
     if (typeof result === "object" && "insufficientStock" in result) {
