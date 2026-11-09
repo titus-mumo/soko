@@ -2,7 +2,9 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import {
   api,
   createMarket,
+  createAddress,
   createSeller,
+  createUser,
   missingId,
   ok,
   placeOrder,
@@ -195,24 +197,107 @@ describe("platform promotions", () => {
     expect(res.status).toBe(400);
     expect(res.body.message).toMatch(/expired/i);
   });
+});
 
-  test("POST /promotions/me/apply applies a code to my order", async () => {
-    const { orderId } = await placeOrder(m);
-    const applied = ok(
-      await api("POST", "/promotions/me/apply", {
-        token: m.buyer.token,
-        body: { orderId, code: WELCOME },
+describe("promo codes at checkout", () => {
+  const addToCart = async (token: string, quantity = 1) =>
+    ok(
+      await api("POST", "/cart", {
+        token,
+        body: { productVariantId: m.product.variantId, quantity },
+      }),
+      201,
+    );
+  const checkout = (token: string, addressId: string, promotionCode?: string) =>
+    api("POST", "/orders/me", {
+      token,
+      body: { deliveryAddressId: addressId, promotionCode },
+    });
+  const newBuyer = async () => {
+    const u = await createUser(t, "promo");
+    const a = await createAddress(u, m.zone.county);
+    return { u, a };
+  };
+  const promo = async (name: string, body: object) => {
+    const c = code(name);
+    ok(
+      await api("POST", "/promotions/admin", {
+        token: m.admin.token,
+        body: { code: c, ...body },
+      }),
+      201,
+    );
+    return c;
+  };
+
+  test("the discount comes off what the buyer pays", async () => {
+    const c = await promo("TAKE200", { type: "fixed", value: "200" });
+    const { u, a } = await newBuyer();
+    await addToCart(u.token, 2); // 2 × 1000
+    const placed = ok(await checkout(u.token, a.id, c), 201);
+    expect(placed.discountAmount).toBe("200.00");
+    expect(Number(placed.totalAmount)).toBe(
+      2000 - 200 + Number(placed.deliveryFee),
+    );
+    const detail = ok(
+      await api("GET", `/orders/me/${placed.orderId}`, { token: u.token }),
+    );
+    expect(detail.order.discountAmount).toBe("200.00");
+    expect(detail.order.totalAmount).toBe(placed.totalAmount);
+  });
+
+  test("a bad code stops checkout and leaves the cart as it was", async () => {
+    const { u, a } = await newBuyer();
+    await addToCart(u.token);
+    const res = await checkout(u.token, a.id, "NO-SUCH-CODE");
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("PROMO_INVALID");
+    const cart = ok(await api("GET", "/cart", { token: u.token }));
+    expect(cart).toHaveLength(1);
+  });
+
+  test("a one-use code goes to one order, and cancelling gives it back", async () => {
+    const c = await promo("ONCE", { type: "percent", value: "10", maxUses: 1 });
+    const buyers = [await newBuyer(), await newBuyer()];
+    for (const b of buyers) await addToCart(b.u.token);
+    const results = await Promise.all(
+      buyers.map((b) => checkout(b.u.token, b.a.id, c)),
+    );
+    expect(results.map((r) => r.status).sort()).toEqual([201, 400]);
+
+    const winner = buyers[results.findIndex((r) => r.status === 201)]!;
+    const loser = buyers[results.findIndex((r) => r.status === 400)]!;
+    const placed = results.find((r) => r.status === 201)!.body.data;
+    ok(
+      await api("PATCH", `/orders/me/${placed.orderId}/cancel`, {
+        token: winner.u.token,
       }),
     );
-    expect(applied.discount).toBe(200);
+    // The loser's cart was put back; now the code is free again.
+    expect((await checkout(loser.u.token, loser.a.id, c)).status).toBe(201);
   });
 
-  test("apply is 404 for another buyer's order", async () => {
-    const { orderId } = await placeOrder(m);
-    const res = await api("POST", "/promotions/me/apply", {
-      token: store.token,
-      body: { orderId, code: WELCOME },
-    });
-    expect(res.status).toBe(404);
+  test("a double-clicked checkout places one order", async () => {
+    const { u, a } = await newBuyer();
+    await addToCart(u.token);
+    const results = await Promise.all(
+      [1, 2, 3].map(() => checkout(u.token, a.id)),
+    );
+    expect(results.filter((r) => r.status === 201)).toHaveLength(1);
   });
+});
+
+test("a promotion's value must make sense", async () => {
+  for (const body of [
+    { type: "percent", value: "150" },
+    { type: "percent", value: "0" },
+    { type: "fixed", value: "-50" },
+    { type: "fixed", value: "abc" },
+  ]) {
+    const res = await api("POST", "/promotions/admin", {
+      token: m.admin.token,
+      body: { code: code(`BAD${body.value}`.replace(/\W/g, "")), ...body },
+    });
+    expect(res.status).toBe(400);
+  }
 });

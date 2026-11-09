@@ -33,6 +33,7 @@ function iconFor(type: string): IconName {
   if (/ship|deliver/.test(type)) return "truck";
   if (/promo/.test(type)) return "tag";
   if (/review/.test(type)) return "star";
+  if (/alert|security/.test(type)) return "triangle-alert";
   return "info";
 }
 
@@ -67,7 +68,12 @@ function groupByDate(
   return groups;
 }
 
-export default function NotificationsPage() {
+export default function NotificationsPage({
+  admin = false,
+}: {
+  /** The admin's inbox: no shopper links (there are no orders to view). */
+  admin?: boolean;
+}) {
   const { unreadCount, markedRead } = useNotificationStore();
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [markingAll, setMarkingAll] = useState(false);
@@ -220,8 +226,12 @@ export default function NotificationsPage() {
                 Show all
               </Button>
             ) : (
-              <ButtonLink href="/orders" variant="secondary" size="sm">
-                View your orders
+              <ButtonLink
+                href={admin ? "/admin/monitoring" : "/orders"}
+                variant="secondary"
+                size="sm"
+              >
+                {admin ? "Open monitoring" : "View your orders"}
               </ButtonLink>
             )
           }

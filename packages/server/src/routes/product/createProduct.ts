@@ -51,7 +51,9 @@ export const CreateProduct = new Elysia().use(adminPlugin).post(
           material: t.Optional(t.String()),
           price: t.String(),
           compareAtPrice: t.Optional(t.String()),
-          stockQuantity: t.Optional(t.Number()),
+          stockQuantity: t.Optional(
+            t.Integer({ minimum: 0, maximum: 1_000_000 }),
+          ),
         }),
         { minItems: 1 },
       ),

@@ -4,8 +4,12 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth.store";
 import { onAuthHydrated, restoreSession } from "@/lib/session";
+import { syncUnreadCount } from "@/lib/sync";
 import { AppFrame } from "./AppFrame";
 import { FullPageLoader } from "./FullPageLoader";
+
+// Monitoring alerts land every few minutes; check for them about as often.
+const UNREAD_POLL_MS = 60_000;
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -41,6 +45,14 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       unsub();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- runs once per mount
+
+  // The inbox badge (sidebar and bell), kept fresh.
+  useEffect(() => {
+    if (!ready) return;
+    syncUnreadCount();
+    const interval = setInterval(syncUnreadCount, UNREAD_POLL_MS);
+    return () => clearInterval(interval);
+  }, [ready]);
 
   if (!ready) return <FullPageLoader label="Loading admin" />;
 

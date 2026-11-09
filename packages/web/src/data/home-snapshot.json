@@ -1,0 +1,156 @@
+{
+  "takenAt": "2026-11-08T12:21:54.684Z",
+  "counties": 5,
+  "categories": [
+    {
+      "id": "111b7e9c-35da-42d5-923d-74453bf91c21",
+      "name": "Electronics",
+      "slug": "electronics",
+      "icon": null
+    },
+    {
+      "id": "5cf7decb-f54d-4355-ad1a-2ea2e2f6ac73",
+      "name": "Fashion",
+      "slug": "fashion",
+      "icon": null
+    },
+    {
+      "id": "a0627b8b-bd3b-4a7b-bf4b-932664d6f0f2",
+      "name": "Home & Kitchen",
+      "slug": "home-kitchen",
+      "icon": null
+    },
+    {
+      "id": "82c0772c-2ef8-4023-baab-2e20485b6758",
+      "name": "Laptops",
+      "slug": "laptops",
+      "icon": null
+    },
+    {
+      "id": "fa9c3b61-67e2-4ae4-8b36-53a29746c647",
+      "name": "Beauty",
+      "slug": "beauty",
+      "icon": null
+    },
+    {
+      "id": "9ef155cd-124a-4fb2-9926-62e6bdaea903",
+      "name": "Groceries",
+      "slug": "groceries",
+      "icon": null
+    },
+    {
+      "id": "4130f548-fc4d-4e36-b175-213e42448bef",
+      "name": "Sports & Outdoors",
+      "slug": "sports-outdoors",
+      "icon": null
+    }
+  ],
+  "products": [
+    {
+      "id": "1ab30dab-2c5a-4e55-a1fc-21801a021c8f",
+      "name": "Essence Mascara Lash Princess",
+      "slug": "essence-mascara-lash-princess",
+      "condition": "new",
+      "price": "1299.00",
+      "compareAtPrice": "1499.00",
+      "image": "/home/essence-mascara-lash-princess.webp",
+      "variantId": null,
+      "hasOptions": false,
+      "soldOut": false
+    },
+    {
+      "id": "6daddb46-b647-49a5-b950-8314b815c9a8",
+      "name": "Calvin Klein CK One",
+      "slug": "calvin-klein-ck-one",
+      "condition": "new",
+      "price": "6499.00",
+      "compareAtPrice": null,
+      "image": "/home/calvin-klein-ck-one.webp",
+      "variantId": null,
+      "hasOptions": false,
+      "soldOut": false
+    },
+    {
+      "id": "c78ac54e-90a6-422e-9863-fad8660a73aa",
+      "name": "Annibale Colombo Bed",
+      "slug": "annibale-colombo-bed",
+      "condition": "new",
+      "price": "246999.00",
+      "compareAtPrice": null,
+      "image": "/home/annibale-colombo-bed.webp",
+      "variantId": null,
+      "hasOptions": false,
+      "soldOut": false
+    },
+    {
+      "id": "65019c2e-a8a7-42bc-b306-a9dca3d701d6",
+      "name": "Apple",
+      "slug": "apple",
+      "condition": "new",
+      "price": "299.00",
+      "compareAtPrice": "299.00",
+      "image": "/home/apple.webp",
+      "variantId": null,
+      "hasOptions": false,
+      "soldOut": false
+    },
+    {
+      "id": "4ce06f4d-1fbd-4203-94a5-65d5c22ead5d",
+      "name": "Used HP EliteBook 840 G5",
+      "slug": "used-hp-elitebook-840-g5",
+      "condition": "used",
+      "price": "32000.00",
+      "compareAtPrice": null,
+      "image": "/home/used-hp-elitebook-840-g5.jpg",
+      "variantId": null,
+      "hasOptions": false,
+      "soldOut": false
+    },
+    {
+      "id": "794b2059-52b6-4aff-9923-98aad10f9f4a",
+      "name": "Kenyan AA Coffee Beans 500g",
+      "slug": "kenyan-aa-coffee-500g",
+      "condition": "new",
+      "price": "1450.00",
+      "compareAtPrice": null,
+      "image": "/home/kenyan-aa-coffee-500g.jpg",
+      "variantId": null,
+      "hasOptions": true,
+      "soldOut": false
+    },
+    {
+      "id": "8e0c65ed-c16f-435e-9a32-917515578ec0",
+      "name": "Men's Leather Sandals",
+      "slug": "mens-leather-sandals",
+      "condition": "new",
+      "price": "2200.00",
+      "compareAtPrice": null,
+      "image": "/home/mens-leather-sandals.jpg",
+      "variantId": null,
+      "hasOptions": true,
+      "soldOut": false
+    },
+    {
+      "id": "9d42ca02-b9c1-4637-9524-49fa4d0941c8",
+      "name": "Kitenge Wrap Dress",
+      "slug": "kitenge-wrap-dress",
+      "condition": "new",
+      "price": "3500.00",
+      "compareAtPrice": null,
+      "image": "/home/kitenge-wrap-dress.jpg",
+      "variantId": null,
+      "hasOptions": true,
+      "soldOut": false
+    }
+  ],
+  "images": {
+    "https://cdn.dummyjson.com/product-images/beauty/essence-mascara-lash-princess/1.webp": "/home/essence-mascara-lash-princess.webp",
+    "https://cdn.dummyjson.com/product-images/fragrances/calvin-klein-ck-one/1.webp": "/home/calvin-klein-ck-one.webp",
+    "https://cdn.dummyjson.com/product-images/furniture/annibale-colombo-bed/1.webp": "/home/annibale-colombo-bed.webp",
+    "https://cdn.dummyjson.com/product-images/groceries/apple/1.webp": "/home/apple.webp",
+    "https://picsum.photos/seed/used-hp-elitebook-840-g5-1/800/800": "/home/used-hp-elitebook-840-g5.jpg",
+    "https://picsum.photos/seed/kenyan-aa-coffee-500g-1/800/800": "/home/kenyan-aa-coffee-500g.jpg",
+    "https://picsum.photos/seed/mens-leather-sandals-1/800/800": "/home/mens-leather-sandals.jpg",
+    "https://picsum.photos/seed/kitenge-wrap-dress-1/800/800": "/home/kitenge-wrap-dress.jpg"
+  }
+}

@@ -13,6 +13,8 @@ const OPTIMIZED_HOSTS = [
 ];
 
 function isOptimizable(src: string): boolean {
+  // This site's own files (e.g. the home page's saved photos in public/).
+  if (src.startsWith("/") && !src.startsWith("//")) return true;
   try {
     const { hostname } = new URL(src);
     return OPTIMIZED_HOSTS.some((re) => re.test(hostname));

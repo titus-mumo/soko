@@ -54,10 +54,12 @@ export function HeroCarousel({ counties }: { counties: number }) {
   useEffect(() => {
     if (paused) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const t = setTimeout(
-      () => setIndex((i) => (i + 1) % slides.length),
-      INTERVAL_MS,
-    );
+    const t = setTimeout(() => {
+      // Hold still while the welcome tour is on screen (it dims the page;
+      // a slide change behind it would only cost frames).
+      if (document.documentElement.dataset.tour === "open") return;
+      setIndex((i) => (i + 1) % slides.length);
+    }, INTERVAL_MS);
     return () => clearTimeout(t);
   }, [index, paused, slides.length]);
 

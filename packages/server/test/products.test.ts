@@ -526,3 +526,16 @@ describe("keeping deals on Soko", () => {
     );
   });
 });
+
+test("a removed product still has a name on orders, but nothing to buy", async () => {
+  const gone = await createProduct(t, admin, category.id, { stock: 5 });
+  ok(await api("DELETE", `/products/${gone.id}`, { token: admin.token }));
+  const details = ok(await api("GET", `/products/variants/${gone.variantId}`));
+  expect(details.product.id).toBe(gone.id);
+  expect(details.variant.availableQuantity).toBe(0);
+  const add = await api("POST", "/cart", {
+    token: buyer.token,
+    body: { productVariantId: gone.variantId, quantity: 1 },
+  });
+  expect(add.status).toBeGreaterThanOrEqual(400);
+});

@@ -79,6 +79,23 @@ export async function syncOrderStatus(orderId: string) {
 export const orderRef = (orderId: string) =>
   `#${orderId.slice(-8).toUpperCase()}`;
 
+/** Puts a message in every admin's inbox (e.g. a refund that's due). */
+export async function notifyAdmins(type: string, title: string, body: string) {
+  const { userRepository } = getRepositories();
+  const admins = await userRepository.findAdminIds();
+  await Promise.all(
+    admins.map((userId) =>
+      notificationRepository.insertNotification({
+        userId,
+        type,
+        title,
+        body,
+        channel: "push",
+      }),
+    ),
+  );
+}
+
 export async function notifyBuyer(
   buyerId: string,
   type: string,

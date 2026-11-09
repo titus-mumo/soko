@@ -1,5 +1,6 @@
 import { getRepositories } from "../lib/repositories";
-import { orderRef } from "./fulfilment";
+import { timingSafeEqual } from "node:crypto";
+import { notifyAdmins, orderRef } from "./fulfilment";
 
 const {
   paymentRepository,
@@ -29,6 +30,29 @@ const DARAJA_CONSUMER_SECRET = Bun.env.DARAJA_CONSUMER_SECRET!;
 const DARAJA_SHORTCODE = Bun.env.DARAJA_SHORTCODE!;
 const DARAJA_PASSKEY = Bun.env.DARAJA_PASSKEY!;
 const DARAJA_CALLBACK_URL = Bun.env.DARAJA_CALLBACK_URL!;
+// The callback URL is public. Safaricom calls back exactly the URL we give
+// it, so a secret in that URL proves a callback really came from them.
+const DARAJA_CALLBACK_SECRET = Bun.env.DARAJA_CALLBACK_SECRET ?? "";
+if (!DARAJA_CALLBACK_SECRET && Bun.env.NODE_ENV === "production")
+  console.warn(
+    "DARAJA_CALLBACK_SECRET isn't set: anyone could post a fake 'paid' M-Pesa callback.",
+  );
+
+function callbackUrl(): string {
+  if (!DARAJA_CALLBACK_SECRET) return DARAJA_CALLBACK_URL;
+  const url = new URL(DARAJA_CALLBACK_URL);
+  url.searchParams.set("key", DARAJA_CALLBACK_SECRET);
+  return url.toString();
+}
+
+/** Whether a callback carries our secret (always true when none is set). */
+export function isGenuineCallback(key: unknown): boolean {
+  if (!DARAJA_CALLBACK_SECRET) return true;
+  if (typeof key !== "string") return false;
+  const a = Buffer.from(key);
+  const b = Buffer.from(DARAJA_CALLBACK_SECRET);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 // ─────────────────────────────────────────
 // Helpers
@@ -100,6 +124,7 @@ export async function initiatePayment(
   phone: string,
 ): Promise<
   | "order_not_found"
+  | "order_not_payable"
   | "payment_already_paid"
   | "stk_push_failed"
   | "payment_initiated"
@@ -113,6 +138,8 @@ export async function initiatePayment(
   if (existingPayment !== "payment_not_found" && existingPayment.paid) {
     return "payment_already_paid";
   }
+  // A cancelled order has given its stock back; it can't be paid for.
+  if (order.status !== "pending") return "order_not_payable";
 
   // Create or reset the payment record for this order.
   if (existingPayment === "payment_not_found") {
@@ -124,6 +151,11 @@ export async function initiatePayment(
       amount: order.totalAmount,
     });
   }
+
+  // Daraja requires integer amounts.
+  const requested = IS_DARAJA_PRODUCTION
+    ? Math.ceil(parseFloat(order.totalAmount))
+    : SANDBOX_STK_AMOUNT;
 
   try {
     const accessToken = await getDarajaAccessToken();
@@ -148,14 +180,11 @@ export async function initiatePayment(
           Password: password,
           Timestamp: timestamp,
           TransactionType: "CustomerPayBillOnline",
-          // Daraja requires integer amounts.
-          Amount: IS_DARAJA_PRODUCTION
-            ? Math.ceil(parseFloat(order.totalAmount))
-            : SANDBOX_STK_AMOUNT,
+          Amount: requested,
           PartyA: formattedPhone,
           PartyB: DARAJA_SHORTCODE,
           PhoneNumber: formattedPhone,
-          CallBackURL: DARAJA_CALLBACK_URL,
+          CallBackURL: callbackUrl(),
           AccountReference: `SOKO-${orderId.slice(0, 8).toUpperCase()}`,
           TransactionDesc: `Payment for Soko order ${orderId.slice(0, 8)}`,
         }),
@@ -175,7 +204,11 @@ export async function initiatePayment(
     }
 
     // Store the STK push metadata for matching against the callback.
-    await paymentRepository.updateMetadata(orderId, data);
+    // …and the amount asked for, which the callback must match.
+    await paymentRepository.updateMetadata(orderId, {
+      ...data,
+      RequestedAmount: requested,
+    });
 
     return "payment_initiated";
   } catch (error) {
@@ -193,6 +226,17 @@ export async function initiatePayment(
 // ─────────────────────────────────────────
 // Daraja Callback
 // ─────────────────────────────────────────
+
+/** The amount M-Pesa says was paid (CallbackMetadata Item "Amount"). */
+function callbackAmount(stkCallback: Record<string, unknown>): number {
+  const items = (
+    stkCallback?.CallbackMetadata as {
+      Item?: { Name: string; Value: unknown }[];
+    }
+  )?.Item;
+  const amount = items?.find((i) => i.Name === "Amount")?.Value;
+  return typeof amount === "number" ? amount : Number(amount ?? NaN);
+}
 
 export async function handleDarajaCallback(
   rawCallback: Record<string, unknown>,
@@ -228,8 +272,43 @@ export async function handleDarajaCallback(
 
   try {
     if (resultCode === 0) {
-      // Payment successful — flip the payment record and advance order status.
-      await paymentRepository.markAsPaid(orderId, rawCallback);
+      const requested = Number(
+        (payment.metadata as Record<string, unknown> | null)?.RequestedAmount,
+      );
+      const paidAmount = callbackAmount(stkCallback);
+      if (Number.isFinite(requested) && !(paidAmount >= requested)) {
+        // Paid less than asked (or no amount at all): don't release the order.
+        await errorLogRepository.insertErrorLog(
+          "/payments/callback",
+          "Callback amount is less than the amount requested",
+          rawCallback,
+          { orderId, requested, paidAmount },
+        );
+        await notifyAdmins(
+          "payment_mismatch",
+          "Payment amount mismatch",
+          `M-Pesa reported KES ${paidAmount} for order ${orderRef(orderId)}, but KES ${requested} was requested. The order was not confirmed.`,
+        );
+        return;
+      }
+
+      // Payment successful — flip the payment record (only if it was still
+      // pending: a replayed callback changes nothing).
+      const settled = await paymentRepository.markAsPaid(orderId, rawCallback);
+      if (settled === "payment_not_found") return;
+
+      const order = await orderRepository.findOrderById(orderId);
+      if (order !== "order_not_found" && order.status !== "pending") {
+        // Paid after the order was cancelled: keep the money on record,
+        // leave the order cancelled, and get it refunded.
+        await orderRepository.updatePaymentStatus(orderId, "paid");
+        await notifyAdmins(
+          "refund_due",
+          "Refund due",
+          `Order ${orderRef(orderId)} was paid (KES ${paidAmount}) after it was ${order.status}. Refund it via M-Pesa.`,
+        );
+        return;
+      }
 
       await orderRepository.updateOrderAndPaymentStatus(
         orderId,
@@ -241,7 +320,6 @@ export async function handleDarajaCallback(
       await orderItemRepository.updateStatusByOrderId(orderId, "confirmed");
 
       // Notify the buyer of successful payment.
-      const order = await orderRepository.findOrderById(orderId);
       if (order !== "order_not_found") {
         await notificationRepository.insertNotification({
           userId: order.buyerId,
@@ -253,8 +331,12 @@ export async function handleDarajaCallback(
       }
     } else {
       // Payment failed — record the failure without cancelling the order
-      // so the buyer can retry.
-      await paymentRepository.markAsFailed(orderId, rawCallback);
+      // so the buyer can retry. A settled payment isn't touched.
+      const settled = await paymentRepository.markAsFailed(
+        orderId,
+        rawCallback,
+      );
+      if (settled === "payment_not_found") return;
 
       await orderRepository.updatePaymentStatus(orderId, "failed");
 

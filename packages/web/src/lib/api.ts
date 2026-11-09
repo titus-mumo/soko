@@ -1,5 +1,7 @@
 import axios from "axios";
-import { useAuthStore } from "@/store/auth.store";
+import { useAuthStore, type User } from "@/store/auth.store";
+import { useCartStore } from "@/store/cart.store";
+import { useNotificationStore } from "@/store/notification.store";
 import type { ApiResponse } from "./types";
 import { BROWSER_API_URL as BASE_URL } from "./env";
 
@@ -31,18 +33,53 @@ declare module "axios" {
 // isn't spent twice.
 let refreshing: Promise<string> | null = null;
 
-/** Exchanges the refresh cookie for a new access token and stores it. */
+/**
+ * The refresh cookie belongs to a different account than the one this
+ * browser remembers (e.g. an earlier session that was never signed out).
+ * Treated as a rejected session: the user signs in again.
+ */
+export class SessionMismatchError extends Error {
+  constructor() {
+    super("Session belongs to a different account");
+  }
+}
+
+/**
+ * Exchanges the refresh cookie for a new access token and stores it, along
+ * with the account the session belongs to. If that isn't the account the
+ * browser remembers, the session is ended rather than trusted — otherwise
+ * the page would show one user while every request ran as another.
+ */
 export function refreshAccessToken(): Promise<string> {
   refreshing ??= axios
-    .post<ApiResponse<{ accessToken: string }>>(
+    .post<ApiResponse<{ accessToken: string; user: User }>>(
       `${BASE_URL}/auth/refresh`,
       {},
       { withCredentials: true },
     )
-    .then(({ data }) => {
-      const token = data.data.accessToken;
-      useAuthStore.getState().setAccessToken(token);
-      return token;
+    .then(async ({ data }) => {
+      const { accessToken, user } = data.data;
+      const auth = useAuthStore.getState();
+      if (auth.user && auth.user.id !== user.id) {
+        // Revoke the stray session with its own token, then forget both.
+        await axios
+          .post(
+            `${BASE_URL}/auth/logout`,
+            {},
+            {
+              withCredentials: true,
+              headers: { Authorization: `Bearer ${accessToken}` },
+            },
+          )
+          .catch(() => {});
+        auth.logout();
+        useCartStore.getState().clearCart();
+        useNotificationStore.getState().clear();
+        throw new SessionMismatchError();
+      }
+      auth.setAccessToken(accessToken);
+      auth.setUser(user);
+      return accessToken;
     })
     .finally(() => {
       refreshing = null;
@@ -56,6 +93,7 @@ export function refreshAccessToken(): Promise<string> {
  * error leaves the user signed in to try again.
  */
 export function isSessionRejected(err: unknown): boolean {
+  if (err instanceof SessionMismatchError) return true;
   const status = axios.isAxiosError(err) ? err.response?.status : undefined;
   return status === 401 || status === 403;
 }

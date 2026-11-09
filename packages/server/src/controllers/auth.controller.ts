@@ -53,6 +53,17 @@ function cookieOptions() {
   };
 }
 
+/**
+ * Revokes the session this browser was already signed in to, if any — run on
+ * every new sign-in so a previous account's session (say, an admin who didn't
+ * sign out) can't linger and resurface on the next refresh.
+ */
+async function endPreviousSession(ctx: Context) {
+  const previous = ctx.cookie[REFRESH_COOKIE]?.value;
+  if (typeof previous === "string" && previous)
+    await logout(previous).catch(() => {});
+}
+
 function setRefreshTokenCookie(ctx: Context, token: string) {
   ctx.cookie[REFRESH_COOKIE].set({
     ...cookieOptions(),
@@ -89,6 +100,7 @@ export async function registerWithEmailController(ctx: Context) {
     return { success: false, message: "Phone number is already registered." };
   }
 
+  await endPreviousSession(ctx);
   setRefreshTokenCookie(ctx, result.tokens.refreshToken);
 
   ctx.set.status = 201;
@@ -119,6 +131,7 @@ export async function loginWithEmailController(ctx: Context) {
     return { success: false, message: "Incorrect password." };
   }
 
+  await endPreviousSession(ctx);
   setRefreshTokenCookie(ctx, result.tokens.refreshToken);
 
   return {
@@ -194,6 +207,7 @@ export async function verifyOtpController(ctx: Context) {
     return { success: false, message: NO_ACCOUNT_FOR_PHONE };
   }
 
+  await endPreviousSession(ctx);
   setRefreshTokenCookie(ctx, result.tokens.refreshToken);
 
   return {
@@ -236,6 +250,7 @@ export async function googleCallbackController(ctx: Context) {
     };
   }
 
+  await endPreviousSession(ctx);
   setRefreshTokenCookie(ctx, result.tokens.refreshToken);
 
   return {
@@ -295,6 +310,9 @@ export async function refreshTokenController(ctx: Context) {
     success: true,
     data: {
       accessToken: result.accessToken,
+      // Whose session this is — the client checks it matches the account it
+      // thinks is signed in (a stale cookie must never pass as someone else).
+      user: selfUser(result.user),
     },
   };
 }

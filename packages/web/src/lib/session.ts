@@ -1,12 +1,12 @@
-import { api, isSessionRejected, refreshAccessToken } from "./api";
+import { isSessionRejected, refreshAccessToken } from "./api";
 import { useAuthStore, type User } from "@/store/auth.store";
-import type { ApiResponse } from "./types";
 
 /**
  * Restores a session after a hard refresh. The access token lives in memory
  * and is lost on reload, but the HTTP-only refresh cookie survives — so try
- * it before deciding the user is signed out. If localStorage lost the user
- * too, fetch it with the new token. Resolves to null when signed out.
+ * it before deciding the user is signed out. The refresh also says whose
+ * session it is, which replaces the remembered user (or ends the session if
+ * they differ). Resolves to null when signed out.
  *
  * Only the API rejecting the session signs the user out. If it can't be
  * reached (or rate-limits, or errors), a remembered user stays signed in;
@@ -23,14 +23,9 @@ export async function restoreSession(): Promise<User | null> {
     return user;
   }
 
-  if (user) return user;
-  try {
-    const { data } = await api.get<ApiResponse<User>>("/users/me");
-    useAuthStore.getState().setUser(data.data);
-    return data.data;
-  } catch {
-    return null;
-  }
+  // The refresh stored the session's own account (checked against the
+  // remembered one), so this is always who requests will run as.
+  return useAuthStore.getState().user;
 }
 
 /** Runs `fn` once the persisted auth store has loaded from localStorage. */

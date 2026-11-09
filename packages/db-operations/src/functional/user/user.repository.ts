@@ -1,7 +1,7 @@
 import { db } from "../../db";
 import { pageNewestFirst, type Page, type PageParams } from "../../pagination";
 import { usersTable } from "../../schema";
-import { and, eq, inArray, or, isNull, sql } from "drizzle-orm";
+import { and, eq, ilike, inArray, ne, or, isNull, sql } from "drizzle-orm";
 import { phoneVariants } from "../../phone";
 
 export type User = typeof usersTable.$inferSelect;
@@ -112,6 +112,40 @@ export class UserRepository {
 
     const { passwordHash: _passwordHash, ...publicUser } = res;
     return publicUser as PublicUser;
+  }
+
+  /**
+   * Accounts whose name or email contains `query`, or whose phone matches it
+   * in any stored form (07…, 254…, +254…). For picking recipients, so it
+   * leaves out deleted accounts and the house store's system account.
+   */
+  async searchUsers(query: string, limit = 8): Promise<PublicUser[]> {
+    const like = `%${query.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    const digits = query.replace(/\D/g, "");
+    const rows = await db
+      .select()
+      .from(usersTable)
+      .where(
+        and(
+          isNull(usersTable.deletedAt),
+          ne(usersTable.phone, "house-store"),
+          or(
+            ilike(usersTable.name, like),
+            ilike(usersTable.email, like),
+            inArray(usersTable.phone, phoneVariants(query)),
+            // Part of a number (e.g. the last few digits).
+            digits.length >= 4
+              ? ilike(usersTable.phone, `%${digits}%`)
+              : undefined,
+          ),
+        ),
+      )
+      .orderBy(usersTable.name)
+      .limit(limit);
+    return rows.map(
+      ({ passwordHash: _passwordHash, ...publicUser }) =>
+        publicUser as PublicUser,
+    );
   }
 
   /** Ids of active admin accounts (for alert notifications). */

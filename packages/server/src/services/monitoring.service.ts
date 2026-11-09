@@ -98,7 +98,8 @@ export async function evaluateAlerts(now = new Date()): Promise<Alert[]> {
       key: "traffic-spike",
       level: "warning",
       title: "Traffic spike",
-      detail: `${total} requests in the last hour — ${Math.round(total / baseline)}× the usual ${Math.round(baseline)}.`,
+      // A quiet site's usual rate can be a fraction of a request an hour.
+      detail: `${total} requests in the last hour — ${Math.round(total / baseline)}× the usual ${baseline < 1 ? "(under 1 an hour)" : `${Math.round(baseline)} an hour`}.`,
     });
 
   if (rateLimited >= T.rateLimitedWarn)

@@ -305,3 +305,57 @@ test("phone numbers are unique per user", async () => {
       .status,
   ).toBe(409);
 });
+
+describe("admin: find a recipient", () => {
+  const search = (q: string, token = admin.token) =>
+    api("GET", `/users/admin/search?q=${encodeURIComponent(q)}`, { token });
+
+  test("by part of an email, with only what the picker shows", async () => {
+    const found = ok(await search(user.email.split("@")[0]!));
+    expect(found.map((u: { id: string }) => u.id)).toContain(user.id);
+    const hit = found.find((u: { id: string }) => u.id === user.id);
+    expect(Object.keys(hit).sort()).toEqual(
+      ["email", "id", "name", "phone", "profilePhoto", "role"].sort(),
+    );
+  });
+
+  test("by phone, in any form", async () => {
+    const local = `0${user.phone.slice(-9)}`;
+    for (const q of [user.phone, local, user.phone.slice(-6)]) {
+      const ids = ok(await search(q)).map((u: { id: string }) => u.id);
+      expect(ids).toContain(user.id);
+    }
+  });
+
+  test("ignores very short queries and leaves out the house store", async () => {
+    expect(ok(await search("a"))).toEqual([]);
+    const ids = ok(await search("house-store")).map(
+      (u: { email: string }) => u.email,
+    );
+    expect(ids).not.toContain("house-store@soko.internal");
+  });
+
+  test("is admin-only", async () => {
+    expect((await search(user.email, user.token)).status).toBe(403);
+  });
+});
+
+test("admins receive notifications in their own inbox", async () => {
+  const other = await createAdmin(t);
+  ok(
+    await api("POST", "/notifications/admin/send", {
+      token: admin.token,
+      body: {
+        userId: other.id,
+        type: "system",
+        title: "Hello admin",
+        body: "Inbox check",
+        channel: "push",
+      },
+    }),
+  );
+  const inbox = await api("GET", "/notifications/me", { token: other.token });
+  expect(ok(inbox).map((n: { title: string }) => n.title)).toContain(
+    "Hello admin",
+  );
+});

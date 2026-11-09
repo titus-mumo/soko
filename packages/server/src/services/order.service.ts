@@ -1,6 +1,13 @@
 import { getRepositories } from "../lib/repositories";
-import { isActive, notifyBuyer, orderRef, syncOrderStatus } from "./fulfilment";
+import {
+  isActive,
+  notifyAdmins,
+  notifyBuyer,
+  orderRef,
+  syncOrderStatus,
+} from "./fulfilment";
 import type { OrderItem, OrderStatus, PageParams } from "db-operations";
+import { validatePromotion, type PromoProblem } from "./promotion.service";
 
 const {
   orderRepository,
@@ -16,6 +23,7 @@ const {
   shipmentRepository,
   userRepository,
   stockRepository,
+  promotionRepository,
 } = getRepositories();
 
 // ─────────────────────────────────────────
@@ -36,15 +44,53 @@ export async function placeOrder(
   | "delivery_zone_not_found"
   | { insufficientStock: true; variantId: string; available: number }
   | "variant_not_found"
-  | { orderId: string; totalAmount: string; deliveryFee: string }
+  | { promo: PromoProblem }
+  | PlacedOrder
 > {
   // Fetch the user's cart.
   const cart = await cartRepository.findCartByUserId(userId);
   if (cart === "cart_not_found") return "cart_not_found";
 
-  const cartItems = await cartItemRepository.findItemsByCartId(cart.id);
+  // Claim the cart's items in one step: a double-clicked checkout finds the
+  // cart already empty rather than placing the same order twice.
+  const cartItems = await cartItemRepository.claimItemsByCartId(cart.id);
   if (cartItems.length === 0) return "cart_empty";
 
+  // Anything short of a placed order puts the cart back as it was.
+  try {
+    const result = await placeClaimedOrder(userId, data, cartItems);
+    if (typeof result !== "object" || !("orderId" in result))
+      await cartItemRepository.restoreItems(cartItems.map((i) => i.id));
+    return result;
+  } catch (err) {
+    await cartItemRepository.restoreItems(cartItems.map((i) => i.id));
+    throw err;
+  }
+}
+
+type PlacedOrder = {
+  orderId: string;
+  totalAmount: string;
+  deliveryFee: string;
+  discountAmount: string;
+};
+
+async function placeClaimedOrder(
+  userId: string,
+  data: {
+    deliveryAddressId: string;
+    notes?: string;
+    promotionCode?: string;
+  },
+  cartItems: { productVariantId: string; quantity: number }[],
+): Promise<
+  | "address_not_found"
+  | "delivery_zone_not_found"
+  | { insufficientStock: true; variantId: string; available: number }
+  | "variant_not_found"
+  | { promo: PromoProblem }
+  | PlacedOrder
+> {
   // Confirm the delivery address belongs to the user.
   const address = await userAddressRepository.findAddressById(
     data.deliveryAddressId,
@@ -89,7 +135,19 @@ export async function placeOrder(
     });
   }
 
-  const totalAmount = (subtotal + deliveryFee).toFixed(2);
+  // A promo code comes off the items (not delivery). Checked before any
+  // stock is taken, so a bad code costs nothing.
+  const code = data.promotionCode?.trim();
+  let discount = 0;
+  let promotionId: string | null = null;
+  if (code) {
+    const promo = await validatePromotion(code, subtotal);
+    if (typeof promo === "string") return { promo };
+    discount = promo.discount;
+    promotionId = promo.promotionId;
+  }
+
+  const totalAmount = (subtotal - discount + deliveryFee).toFixed(2);
 
   // Take the stock first, all lines or none, in one locked transaction: no
   // two checkouts can both get the last unit, and other shoppers' cart
@@ -116,6 +174,15 @@ export async function placeOrder(
       ),
     );
 
+  // Use the code — atomically, so a last remaining use goes to one order.
+  if (promotionId && !(await promotionRepository.redeem(promotionId))) {
+    await returnStock();
+    return { promo: "promotion_exhausted" };
+  }
+  const releasePromo = async () => {
+    if (promotionId) await promotionRepository.release(promotionId);
+  };
+
   // Insert the order record.
   const order = await orderRepository.insertOrder({
     buyerId: userId,
@@ -124,11 +191,14 @@ export async function placeOrder(
     paymentStatus: "pending",
     totalAmount,
     deliveryFee: deliveryFee.toFixed(2),
+    discountAmount: discount.toFixed(2),
+    promotionId,
     notes: data.notes,
   });
 
   if (!order) {
     await returnStock();
+    await releasePromo();
     throw new Error("Failed to create order");
   }
 
@@ -144,11 +214,9 @@ export async function placeOrder(
   } catch (err) {
     await orderRepository.softDeleteOrder(order.id);
     await returnStock();
+    await releasePromo();
     throw err;
   }
-
-  // Clear the cart after successful order placement.
-  await cartItemRepository.softDeleteItemsByCartId(cart.id);
 
   // Notify the buyer.
   await notificationRepository.insertNotification({
@@ -163,6 +231,7 @@ export async function placeOrder(
     orderId: order.id,
     totalAmount,
     deliveryFee: deliveryFee.toFixed(2),
+    discountAmount: discount.toFixed(2),
   };
 }
 
@@ -215,22 +284,30 @@ export async function cancelOrder(
     ),
   );
 
-  await orderRepository.updateOrderAndPaymentStatus(
-    orderId,
-    "cancelled",
-    "refunded",
-  );
+  // The payment status stays as it was: nothing refunds M-Pesa
+  // automatically, so a paid order isn't "refunded" until someone does it.
+  await orderRepository.updateOrderStatus(orderId, "cancelled");
 
   // Update all order items to cancelled.
   await orderItemRepository.updateStatusByOrderId(orderId, "cancelled");
+  if (order.promotionId) await promotionRepository.release(order.promotionId);
 
+  const paid = order.paymentStatus === "paid";
   await notificationRepository.insertNotification({
     userId,
     type: "order_cancelled",
     title: "Order Cancelled",
-    body: `Your order ${orderRef(orderId)} has been cancelled.`,
+    body: paid
+      ? `Your order ${orderRef(orderId)} has been cancelled. We'll refund KES ${order.totalAmount} to your M-Pesa.`
+      : `Your order ${orderRef(orderId)} has been cancelled.`,
     channel: "push",
   });
+  if (paid)
+    await notifyAdmins(
+      "refund_due",
+      "Refund due",
+      `Order ${orderRef(orderId)} was cancelled by the buyer after paying KES ${order.totalAmount}. Refund it via M-Pesa.`,
+    );
 
   return "order_cancelled";
 }

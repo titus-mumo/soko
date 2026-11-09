@@ -33,6 +33,16 @@ export const shownStock = (n: number) =>
 
 // ─── Users ───────────────────────────────────────────────────────────────────
 
+/** A search hit when an admin picks who to message. */
+export const userPick = viewOf([
+  "id",
+  "name",
+  "email",
+  "phone",
+  "profilePhoto",
+  "role",
+] as const);
+
 /** The signed-in user, as returned by /users/me and every auth response. */
 export const selfUser = viewOf([
   "id",
@@ -214,6 +224,7 @@ export const buyerOrder = viewOf([
   "paymentStatus",
   "totalAmount",
   "deliveryFee",
+  "discountAmount",
   "deliveryAddressId",
   "notes",
   "createdAt",

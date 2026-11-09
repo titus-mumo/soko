@@ -28,6 +28,17 @@ export class ProductVariantRepository {
     return await db.insert(productVariantsTable).values(variants).returning();
   }
 
+  /** Also finds a removed variant — orders still need to show what it was. */
+  async findVariantByIdEvenRemoved(
+    id: string,
+  ): Promise<FindProductVariantResponse> {
+    const [res] = await db
+      .select()
+      .from(productVariantsTable)
+      .where(eq(productVariantsTable.id, id));
+    return res ?? "variant_not_found";
+  }
+
   async findVariantById(id: string): Promise<FindProductVariantResponse> {
     const [res] = await db
       .select()

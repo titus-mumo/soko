@@ -150,6 +150,13 @@ export async function getAllUsers(page?: PageParams) {
   return await userRepository.pageUsers(page);
 }
 
+/** Up to 8 accounts matching a name, email or phone fragment. */
+export async function searchUsers(query: string) {
+  const q = query.trim();
+  if (q.length < 2) return [];
+  return await userRepository.searchUsers(q.slice(0, 100));
+}
+
 export async function updateUserRole(
   userId: string,
   role: "buyer" | "seller" | "admin",

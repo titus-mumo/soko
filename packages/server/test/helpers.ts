@@ -2,6 +2,7 @@
 // users / stores / products / orders, and cleanup that hard-deletes exactly
 // what a test file created.
 import { expect } from "bun:test";
+import { CALLBACK_PATH } from "./setup";
 import postgres from "postgres";
 import App from "../src/app";
 import { getRepositories } from "../src/lib/repositories";
@@ -421,7 +422,7 @@ export async function payOrder(m: Market, orderId: string) {
   if (payment === "payment_not_found") throw new Error("no payment");
   const checkoutRequestId = (payment.metadata as { CheckoutRequestID: string })
     .CheckoutRequestID;
-  await api("POST", "/payments/callback", {
+  await api("POST", CALLBACK_PATH, {
     body: {
       Body: {
         stkCallback: {

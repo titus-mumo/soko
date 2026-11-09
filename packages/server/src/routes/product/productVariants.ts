@@ -29,7 +29,7 @@ export const AddVariant = new Elysia().use(adminPlugin).post(
       material: t.Optional(t.String()),
       price: t.String(),
       compareAtPrice: t.Optional(t.String()),
-      stockQuantity: t.Optional(t.Number()),
+      stockQuantity: t.Optional(t.Integer({ minimum: 0, maximum: 1_000_000 })),
     }),
   },
 );
@@ -59,7 +59,7 @@ export const UpdateVariant = new Elysia().use(adminPlugin).patch(
       material: t.Optional(t.String()),
       price: t.Optional(t.String()),
       compareAtPrice: t.Optional(t.String()),
-      stockQuantity: t.Optional(t.Number()),
+      stockQuantity: t.Optional(t.Integer({ minimum: 0, maximum: 1_000_000 })),
     }),
   },
 );
@@ -79,7 +79,7 @@ export const AdjustVariantStock = new Elysia().use(adminPlugin).patch(
   },
   {
     body: t.Object({
-      delta: t.Number(),
+      delta: t.Integer({ minimum: -1_000_000, maximum: 1_000_000 }),
     }),
   },
 );

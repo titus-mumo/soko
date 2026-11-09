@@ -6,6 +6,7 @@ import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { BottomNav } from "./BottomNav";
 import { ToastContainer } from "@/components/ui/Toast";
+import { Tour } from "@/components/tour/Tour";
 import { cn } from "@/lib/utils";
 
 const COLLAPSED_KEY = "soko_sidebar_collapsed";
@@ -182,6 +183,7 @@ export function AppFrame({
 
       {variant === "app" && <BottomNav />}
       <ToastContainer />
+      {variant === "app" && <Tour />}
     </div>
   );
 }

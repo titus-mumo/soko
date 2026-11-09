@@ -1,6 +1,5 @@
 import Elysia from "elysia";
 import { PreviewPromoCode } from "./publicPromotions";
-import { ApplyPromoCode } from "./buyerPromotions";
 import {
   GetPlatformPromotions,
   CreatePlatformPromotion,
@@ -13,8 +12,6 @@ export const promotionRoutes = new Elysia().group("/promotions", (app) =>
   app
     // Public
     .use(PreviewPromoCode)
-    // Buyer
-    .use(ApplyPromoCode)
     // Admin
     .use(GetPlatformPromotions)
     .use(CreatePlatformPromotion)

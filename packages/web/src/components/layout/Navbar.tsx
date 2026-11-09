@@ -51,6 +51,7 @@ function CartLink() {
   return (
     <Link
       href="/cart"
+      data-tour="cart"
       className="tap-target relative flex h-10 w-10 items-center justify-center rounded-full text-zinc-700 transition-colors hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white"
     >
       <Icon name="cart" size={20} />
@@ -123,7 +124,9 @@ export function Navbar() {
                   <ButtonLink href="/login" variant="ghost">
                     Sign in
                   </ButtonLink>
-                  <ButtonLink href="/register">Create account</ButtonLink>
+                  <ButtonLink href="/register" data-tour="signup">
+                    Create account
+                  </ButtonLink>
                 </div>
               </>
             )}

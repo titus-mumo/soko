@@ -42,7 +42,7 @@ export const CreateReview = new Elysia().use(authPlugin).post(
   {
     body: t.Object({
       orderItemId: t.String(),
-      rating: t.Number({ minimum: 1, maximum: 5 }),
+      rating: t.Integer({ minimum: 1, maximum: 5 }),
       comment: t.Optional(t.String()),
     }),
   },

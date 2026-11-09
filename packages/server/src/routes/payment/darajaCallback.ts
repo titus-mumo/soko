@@ -1,13 +1,22 @@
 import Elysia from "elysia";
-import { handleDarajaCallback } from "../../services/payment.service";
+import {
+  handleDarajaCallback,
+  isGenuineCallback,
+} from "../../services/payment.service";
 
 // Publicly accessible — Safaricom calls this after an STK push completes.
-// Secure via IP whitelisting on your server/proxy, not via auth middleware.
+// It's authenticated by the secret in the callback URL we hand Safaricom
+// (DARAJA_CALLBACK_SECRET → ?key=…); anything without it is ignored.
 export const DarajaCallback = new Elysia().post("/callback", async (ctx) => {
-  const body = ctx.body as Record<string, unknown>;
+  const { body, query, set } = ctx as any;
+
+  if (!isGenuineCallback(query?.key)) {
+    set.status = 403;
+    return { ResultCode: 1, ResultDesc: "Rejected" };
+  }
 
   try {
-    await handleDarajaCallback(body);
+    await handleDarajaCallback(body as Record<string, unknown>);
   } catch (error) {
     // Always return 200 even on internal errors —
     // a non-200 response causes Safaricom to retry the callback.

@@ -21,6 +21,21 @@ export function getAllUsers(page?: PageRequest): Promise<Paged<User>> {
   return getPage<User>("/users/admin", page);
 }
 
+/** Who an admin can pick as a recipient — never more than the picker shows. */
+export type UserPick = Pick<
+  User,
+  "id" | "name" | "email" | "phone" | "role" | "profilePhoto"
+>;
+
+/** Up to 8 accounts whose name, email or phone matches `query`. */
+export async function searchUsers(query: string): Promise<UserPick[]> {
+  const { data } = await api.get<ApiResponse<UserPick[]>>(
+    "/users/admin/search",
+    { params: { q: query } },
+  );
+  return data.data;
+}
+
 export async function updateUserRole(
   userId: string,
   role: UserRole,
